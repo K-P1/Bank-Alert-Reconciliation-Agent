@@ -1,6 +1,6 @@
 """Transaction repository with specialized queries."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 from sqlalchemy import select, and_, or_
 
@@ -70,7 +70,7 @@ class TransactionRepository(BaseRepository[Transaction]):
         Returns:
             List of recent transactions
         """
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         query = select(self.model).where(
             self.model.transaction_timestamp >= cutoff
         ).order_by(self.model.transaction_timestamp.desc())
@@ -91,7 +91,7 @@ class TransactionRepository(BaseRepository[Transaction]):
             Updated transaction instance
         """
         if verified_at is None:
-            verified_at = datetime.utcnow()
+            verified_at = datetime.now(timezone.utc)
         return await self.update(
             transaction_id, is_verified=True, verified_at=verified_at, status="verified"
         )

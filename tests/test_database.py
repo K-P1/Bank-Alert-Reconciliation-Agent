@@ -1,7 +1,7 @@
 """Tests for database models and repositories."""
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.db.unit_of_work import UnitOfWork
 
 
@@ -9,9 +9,9 @@ from app.db.unit_of_work import UnitOfWork
 class TestEmailRepository:
     """Test Email model and repository."""
 
-    async def test_create_email(self):
+    async def test_create_email(self, db_session):
         """Test creating an email record."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             email = await uow.emails.create(
                 message_id="test-001@test.com",
                 sender="alerts@bank.com",
@@ -20,7 +20,7 @@ class TestEmailRepository:
                 amount=1000.00,
                 currency="NGN",
                 reference="TEST/REF/001",
-                email_timestamp=datetime.utcnow(),
+                email_timestamp=datetime.now(timezone.utc),
             )
 
             assert email.id is not None
@@ -29,9 +29,9 @@ class TestEmailRepository:
             assert email.currency == "NGN"
             await uow.commit()
 
-    async def test_get_by_message_id(self):
+    async def test_get_by_message_id(self, db_session):
         """Test retrieving email by message ID."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             # Create email
             await uow.emails.create(
                 message_id="test-002@test.com",
@@ -43,15 +43,15 @@ class TestEmailRepository:
             )
             await uow.commit()
 
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             # Retrieve email
             email = await uow.emails.get_by_message_id("test-002@test.com")
             assert email is not None
             assert email.amount == 2000.00
 
-    async def test_get_unprocessed_emails(self):
+    async def test_get_unprocessed_emails(self, db_session):
         """Test getting unprocessed emails."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             # Create unprocessed email
             email = await uow.emails.create(
                 message_id="test-unprocessed@test.com",
@@ -62,14 +62,14 @@ class TestEmailRepository:
             )
             await uow.commit()
 
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             unprocessed = await uow.emails.get_unprocessed()
             assert len(unprocessed) > 0
             assert any(e.message_id == "test-unprocessed@test.com" for e in unprocessed)
 
-    async def test_mark_as_processed(self):
+    async def test_mark_as_processed(self, db_session):
         """Test marking email as processed."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             email = await uow.emails.create(
                 message_id="test-mark-processed@test.com",
                 sender="alerts@bank.com",
@@ -90,15 +90,15 @@ class TestEmailRepository:
 class TestTransactionRepository:
     """Test Transaction model and repository."""
 
-    async def test_create_transaction(self):
+    async def test_create_transaction(self, db_session):
         """Test creating a transaction record."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             transaction = await uow.transactions.create(
                 transaction_id="TEST-TXN-001",
                 external_source="paystack",
                 amount=5000.00,
                 currency="NGN",
-                transaction_timestamp=datetime.utcnow(),
+                transaction_timestamp=datetime.now(timezone.utc),
                 status="pending",
             )
 
@@ -107,50 +107,50 @@ class TestTransactionRepository:
             assert transaction.amount == 5000.00
             await uow.commit()
 
-    async def test_get_by_transaction_id(self):
+    async def test_get_by_transaction_id(self, db_session):
         """Test retrieving transaction by ID."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             await uow.transactions.create(
                 transaction_id="TEST-TXN-002",
                 external_source="flutterwave",
                 amount=3000.00,
                 currency="NGN",
-                transaction_timestamp=datetime.utcnow(),
+                transaction_timestamp=datetime.now(timezone.utc),
             )
             await uow.commit()
 
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             transaction = await uow.transactions.get_by_transaction_id("TEST-TXN-002")
             assert transaction is not None
             assert transaction.amount == 3000.00
 
-    async def test_get_unverified_transactions(self):
+    async def test_get_unverified_transactions(self, db_session):
         """Test getting unverified transactions."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             await uow.transactions.create(
                 transaction_id="TEST-TXN-UNVERIFIED",
                 external_source="paystack",
                 amount=7000.00,
                 currency="NGN",
-                transaction_timestamp=datetime.utcnow(),
+                transaction_timestamp=datetime.now(timezone.utc),
                 is_verified=False,
             )
             await uow.commit()
 
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             unverified = await uow.transactions.get_unverified()
             assert len(unverified) > 0
             assert any(t.transaction_id == "TEST-TXN-UNVERIFIED" for t in unverified)
 
-    async def test_mark_as_verified(self):
+    async def test_mark_as_verified(self, db_session):
         """Test marking transaction as verified."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             transaction = await uow.transactions.create(
                 transaction_id="TEST-TXN-VERIFY",
                 external_source="paystack",
                 amount=9000.00,
                 currency="NGN",
-                transaction_timestamp=datetime.utcnow(),
+                transaction_timestamp=datetime.now(timezone.utc),
                 is_verified=False,
             )
             await uow.commit()
@@ -167,9 +167,9 @@ class TestTransactionRepository:
 class TestMatchRepository:
     """Test Match model and repository."""
 
-    async def test_create_match(self):
+    async def test_create_match(self, db_session):
         """Test creating a match record."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             # Create email and transaction first
             email = await uow.emails.create(
                 message_id="test-match-email@test.com",
@@ -183,7 +183,7 @@ class TestMatchRepository:
                 external_source="paystack",
                 amount=10000.00,
                 currency="NGN",
-                transaction_timestamp=datetime.utcnow(),
+                transaction_timestamp=datetime.now(timezone.utc),
             )
 
             # Create match
@@ -198,12 +198,12 @@ class TestMatchRepository:
             assert match.id is not None
             assert match.email_id == email.id
             assert match.transaction_id == transaction.id
-            assert match.confidence == 0.95
+            assert float(match.confidence) == 0.95
             await uow.commit()
 
-    async def test_get_matched(self):
+    async def test_get_matched(self, db_session):
         """Test getting matched records."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             email = await uow.emails.create(
                 message_id="test-get-matched@test.com",
                 sender="alerts@bank.com",
@@ -215,7 +215,7 @@ class TestMatchRepository:
                 external_source="paystack",
                 amount=5000.00,
                 currency="NGN",
-                transaction_timestamp=datetime.utcnow(),
+                transaction_timestamp=datetime.now(timezone.utc),
             )
 
             await uow.matches.create_match(
@@ -226,14 +226,14 @@ class TestMatchRepository:
             )
             await uow.commit()
 
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             matched = await uow.matches.get_matched()
             assert len(matched) > 0
             assert all(m.matched is True for m in matched)
 
-    async def test_get_match_statistics(self):
+    async def test_get_match_statistics(self, db_session):
         """Test getting match statistics."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             stats = await uow.matches.get_match_statistics()
             assert "total" in stats
             assert "matched" in stats
@@ -246,9 +246,9 @@ class TestMatchRepository:
 class TestConfigRepository:
     """Test Config model and repository."""
 
-    async def test_set_and_get_value(self):
+    async def test_set_and_get_value(self, db_session):
         """Test setting and getting config values."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             # Set value
             await uow.config.set_value(
                 key="test.setting",
@@ -258,14 +258,14 @@ class TestConfigRepository:
             )
             await uow.commit()
 
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             # Get value
             value = await uow.config.get_value("test.setting")
             assert value == 42
 
-    async def test_get_by_category(self):
+    async def test_get_by_category(self, db_session):
         """Test getting configs by category."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             await uow.config.set_value(
                 key="category.test.1",
                 value="value1",
@@ -278,7 +278,7 @@ class TestConfigRepository:
             )
             await uow.commit()
 
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             configs = await uow.config.get_by_category("test_category")
             assert len(configs) >= 2
 
@@ -287,9 +287,9 @@ class TestConfigRepository:
 class TestLogRepository:
     """Test Log model and repository."""
 
-    async def test_create_log(self):
+    async def test_create_log(self, db_session):
         """Test creating a log entry."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             log = await uow.logs.create_log(
                 level="INFO",
                 event="test_event",
@@ -302,9 +302,9 @@ class TestLogRepository:
             assert log.event == "test_event"
             await uow.commit()
 
-    async def test_get_errors(self):
+    async def test_get_errors(self, db_session):
         """Test getting error logs."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             await uow.logs.create_log(
                 level="ERROR",
                 event="test_error",
@@ -312,7 +312,7 @@ class TestLogRepository:
             )
             await uow.commit()
 
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             errors = await uow.logs.get_errors(hours=24)
             assert len(errors) > 0
             assert all(log.level in ["ERROR", "CRITICAL"] for log in errors)
@@ -322,9 +322,9 @@ class TestLogRepository:
 class TestUnitOfWork:
     """Test Unit of Work pattern."""
 
-    async def test_commit(self):
+    async def test_commit(self, db_session):
         """Test committing changes."""
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             email = await uow.emails.create(
                 message_id="test-uow-commit@test.com",
                 sender="test@test.com",
@@ -334,15 +334,15 @@ class TestUnitOfWork:
             email_id = email.id
 
         # Verify it was committed
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             email = await uow.emails.get_by_id(email_id)
             assert email is not None
 
-    async def test_rollback_on_exception(self):
+    async def test_rollback_on_exception(self, db_session):
         """Test automatic rollback on exception."""
         email_id = None
         try:
-            async with UnitOfWork() as uow:
+            async with UnitOfWork(session=db_session) as uow:
                 email = await uow.emails.create(
                     message_id="test-uow-rollback@test.com",
                     sender="test@test.com",
@@ -356,7 +356,7 @@ class TestUnitOfWork:
             pass
 
         # Verify it was rolled back
-        async with UnitOfWork() as uow:
+        async with UnitOfWork(session=db_session) as uow:
             email = await uow.emails.get_by_id(email_id) if email_id else None
             # Should be None since transaction was rolled back
             assert email is None

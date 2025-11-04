@@ -701,76 +701,7 @@ pytest tests/test_database.py
 
 ---
 
-## Validation Results
 
-### ✅ Stage 2 Checkpoint Criteria
-
-All checkpoint criteria have been met:
-
-1. **Can persist and retrieve sample transactions and parsed-email records**
-
-   - ✅ Created and tested through repositories
-   - ✅ Sample data seed script works correctly
-   - ✅ All CRUD operations validated
-
-2. **Automated migration test passes in CI**
-   - ✅ Alembic migrations configured and working
-   - ✅ Initial migration created with all models
-   - ✅ Test suite includes database tests
-   - ✅ Ready for CI integration
-
-### Test Results
-
-```
-tests/test_database.py::TestEmailRepository::test_create_email PASSED
-tests/test_database.py::TestEmailRepository::test_get_by_message_id PASSED
-tests/test_database.py::TestEmailRepository::test_get_unprocessed_emails PASSED
-tests/test_database.py::TestEmailRepository::test_mark_as_processed PASSED
-tests/test_database.py::TestTransactionRepository::test_create_transaction PASSED
-tests/test_database.py::TestTransactionRepository::test_get_by_transaction_id PASSED
-tests/test_database.py::TestTransactionRepository::test_get_unverified_transactions PASSED
-tests/test_database.py::TestTransactionRepository::test_mark_as_verified PASSED
-tests/test_database.py::TestMatchRepository::test_create_match PASSED
-tests/test_database.py::TestMatchRepository::test_get_matched PASSED
-tests/test_database.py::TestMatchRepository::test_get_match_statistics PASSED
-tests/test_database.py::TestConfigRepository::test_set_and_get_value PASSED
-tests/test_database.py::TestConfigRepository::test_get_by_category PASSED
-tests/test_database.py::TestLogRepository::test_create_log PASSED
-tests/test_database.py::TestLogRepository::test_get_errors PASSED
-tests/test_database.py::TestUnitOfWork::test_commit PASSED
-tests/test_database.py::TestUnitOfWork::test_rollback_on_exception PASSED
-
-======================== 17 passed in 2.45s ========================
-```
-
----
-
-## Performance Considerations
-
-### Indexes
-
-All models have strategic indexes on:
-
-- Foreign keys (email_id, transaction_id)
-- Frequently queried fields (amount, timestamp, status)
-- Unique constraints (message_id, transaction_id, config key)
-- Composite indexes for common query patterns
-
-### Connection Pooling
-
-- Pool size: 10 connections
-- Max overflow: 20 connections
-- Pool pre-ping enabled for connection health checks
-
-### Async Operations
-
-All database operations are async, enabling:
-
-- Non-blocking I/O
-- Concurrent request handling
-- Better resource utilization
-
----
 
 
 ## Known Limitations and Future Enhancements
@@ -792,29 +723,4 @@ All database operations are async, enabling:
 6. **Caching:** Redis/Memcached layer for frequently accessed data
 
 ---
-
-
-## Appendix: Command Reference
-
-### Database Management
-
-```powershell
-# Migrations
-alembic revision --autogenerate -m "description"
-alembic upgrade head
-alembic downgrade -1
-alembic current
-alembic history
-
-# Initialization
-python -m app.db.init create
-python -m app.db.init reset  # Destructive!
-
-# Seeding
-python -m app.db.seed
-
-# Retention
-python -m app.db.retention           # Dry run
-python -m app.db.retention --live    # Live cleanup
-```
 

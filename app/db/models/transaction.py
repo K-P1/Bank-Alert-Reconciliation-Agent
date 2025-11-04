@@ -1,6 +1,6 @@
 """Transaction model for storing polled transactions from external APIs."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import String, Text, DateTime, Numeric, Integer, Index
 from sqlalchemy.orm import Mapped, mapped_column
@@ -73,7 +73,7 @@ class Transaction(Base):
         comment="When the transaction occurred"
     )
     polled_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow,
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc),
         comment="When this transaction was fetched by the poller"
     )
 
@@ -99,10 +99,10 @@ class Transaction(Base):
 
     # Audit fields
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
     # Indexes for common queries

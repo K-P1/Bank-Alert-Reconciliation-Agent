@@ -1,6 +1,6 @@
 """Log model for system events, errors, and audit trail."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import String, Text, DateTime, Integer, Index
 from sqlalchemy.orm import Mapped, mapped_column
@@ -75,7 +75,7 @@ class Log(Base):
 
     # Timestamp
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow, index=True,
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True,
         comment="When this log entry was created"
     )
 

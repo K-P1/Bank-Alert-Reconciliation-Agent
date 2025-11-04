@@ -1,6 +1,6 @@
 """Log repository with specialized queries."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 from sqlalchemy import select, desc
 
@@ -159,7 +159,7 @@ class LogRepository(BaseRepository[Log]):
             List of error logs
         """
         hours_value = hours if hours is not None else 24
-        cutoff = datetime.utcnow() - timedelta(hours=hours_value)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours_value)
         query = (
             select(self.model)
             .where(
@@ -187,7 +187,7 @@ class LogRepository(BaseRepository[Log]):
         Returns:
             List of recent logs
         """
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         query = (
             select(self.model)
             .where(self.model.timestamp >= cutoff)
@@ -211,7 +211,7 @@ class LogRepository(BaseRepository[Log]):
         """
         from sqlalchemy import delete
 
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         result = await self.session.execute(
             delete(self.model).where(self.model.timestamp < cutoff)
         )

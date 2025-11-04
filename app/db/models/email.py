@@ -1,6 +1,6 @@
 """Email model for storing parsed bank alert emails."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import String, Text, DateTime, Numeric, Integer, Index
 from sqlalchemy.orm import Mapped, mapped_column
@@ -63,11 +63,11 @@ class Email(Base):
         comment="Transaction timestamp extracted from email"
     )
     parsed_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow,
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc),
         comment="When this email was parsed by the system"
     )
     received_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow,
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc),
         comment="When this email was received (from email headers)"
     )
 
@@ -87,10 +87,10 @@ class Email(Base):
 
     # Audit fields
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
     # Indexes for common queries

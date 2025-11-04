@@ -1,6 +1,6 @@
 """Match repository with specialized queries."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from sqlalchemy import select, and_, or_, desc
 
@@ -165,7 +165,7 @@ class MatchRepository(BaseRepository[Match]):
         Returns:
             Updated match instance
         """
-        update_data = {"status": status, "reviewed_at": datetime.utcnow()}
+        update_data = {"status": status, "reviewed_at": datetime.now(timezone.utc)}
         if reviewed_by:
             update_data["reviewed_by"] = reviewed_by
         if review_notes:

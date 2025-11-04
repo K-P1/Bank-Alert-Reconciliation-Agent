@@ -22,10 +22,16 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "aiosqlite>=0.20.0",
     "black>=25.9.0",
     "flake8>=7.3.0",
     "httpx>=0.28.1",
     "isort>=7.0.0",
     "pytest>=8.4.2",
     "pytest-asyncio>=1.2.0",
+]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::sqlalchemy.exc.SAWarning",
 ]

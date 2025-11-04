@@ -1,7 +1,7 @@
 """Data retention and archival utilities."""
 
 import structlog
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from app.db.unit_of_work import UnitOfWork
@@ -130,7 +130,7 @@ class RetentionPolicy:
 
             # Dry run - count what would be deleted
             from datetime import timedelta
-            cutoff = datetime.utcnow() - timedelta(days=days)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
             from sqlalchemy import select, func
             from app.db.models.log import Log
 
@@ -199,7 +199,7 @@ class RetentionPolicy:
             "logs": log_result,
             # "matches": match_result,
             "dry_run": dry_run,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
