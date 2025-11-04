@@ -1,30 +1,54 @@
 # Roadmap: Build Bank Alert Reconciliation Agent (0–100)
 
-This is a step-by-step development roadmap. Each numbered stage contains detailed tasks, goals, what to produce, validation steps, and a **clear checkpoint** you can use to confirm progress before moving to the next stage. Follow these stages in order. No code is included here — this is a process and verification plan.
+## Stage 0 — Project Setup & Requirements (0–5%)
+
+**Goal:**  
+Lay the groundwork for development by defining what success looks like, setting up the environment, and organizing the project for smooth iteration.
 
 ---
 
-## Stage 0 — Project setup & requirements (0–5%)
-**Goal:** Define scope, success criteria, and project environment.
+### Tasks
+1. **Define success criteria and testable goals**
+   - Functional goals: achieve ≥ 80% match accuracy, complete each reconciliation run under a reasonable time (e.g., < 10 seconds for 100 emails).
+   - Operational goals: ensure error rate is low, and system can recover gracefully from IMAP or API errors.
 
-**Tasks**
-1. Stakeholder interviews: confirm requirements, expected accuracy (80%), acceptable false-positive/false-negative tradeoffs, and downstream actions (e.g., auto-verify, notify, create ticket).
-2. Define acceptance tests and KPIs:
-   - Functional KPIs: match accuracy ≥ 80%, latency per reconciliation run < X seconds (set target).
-   - Operational KPIs: error rate, email fetch success rate, uptime.
-3. Choose tech stack (finalize database, hosting, credentials provider).
-4. Create repository, branching strategy, CI/CD plan.
-5. Document interfaces: A2A JSON-RPC input/output schema, internal DB schemas, and storage layout.
-6. Define security and compliance requirements (data encryption, PII handling, retention).
+2. **Finalize technology stack**
+   - Confirm programming language (Python), framework (FastAPI), and database (SQLite for local dev, PostgreSQL for production).
+   - Decide how credentials will be managed (e.g., `.env` file locally, environment variables in production).
 
-**Deliverables**
-- Project brief and acceptance test list.
-- Repo initialized with README, issue tracker, and CI placeholders.
-- Architecture diagram (high level).
+3. **Set up version control**
+   - Initialize a Git repository.
+   - Create `.gitignore`, `README.md`, and base folder structure using the setup script.
+   - Establish a simple branching convention (`main` + `dev`).
 
-**Validation / Checkpoint**
-- Stakeholder sign-off on requirements and acceptance tests.
-- Repo with issue template and documented architecture available.
+4. **Prepare minimal CI/CD**
+   - Optional: configure GitHub Actions or local test scripts to run linting and tests automatically.
+
+5. **Document key interfaces**
+   - Describe how the agent will communicate through A2A (JSON-RPC 2.0).
+   - Outline expected database schema and major data flows in a short architecture note.
+
+6. **Address basic security hygiene**
+   - Use `.env` files for secrets (IMAP credentials, DB URL).
+   - Note any data that should be treated as sensitive (e.g., email content, account info).
+
+---
+
+### Deliverables
+- A clean Git repository with:
+  - Initialized folder structure
+  - README describing the project scope and goals
+  - `.gitignore` and `.env.example`
+- A short architecture document showing how components will interact.
+- Optional: simple CI job for linting/tests.
+
+---
+
+### Validation / Checkpoint
+- The repo builds cleanly, runs `uvicorn app.main:app` without errors.
+- Architecture and goals are clearly documented in `docs/architecture.md`.
+- You can describe in one sentence what the agent does and what “done” means for this project.
+
 
 ---
 

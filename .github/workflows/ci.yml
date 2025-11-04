@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Sync dependencies (project + dev)
+        run: uv sync --group dev
+
+      - name: Ruff (lint)
+        run: uvx ruff check .
+
+      - name: Black (format check)
+        run: uvx black --check .
+
+      - name: Mypy (type check)
+        run: |
+          uvx mypy --ignore-missing-imports --follow-imports=silent app
+
+      - name: Run tests (pytest)
+        run: |
+          if [ -d "app/tests" ] && [ "$(find app/tests -name 'test_*.py' -o -name '*_test.py' | wc -l)" -gt 0 ]; then
+            uv run pytest -q
+          else
+            echo "No tests found. Skipping pytest."
+          fi
