@@ -76,6 +76,14 @@ class Email(Base):
         Numeric(precision=5, scale=4), nullable=True,
         comment="Confidence score for parsing accuracy (0-1)"
     )
+    confidence: Mapped[Optional[float]] = mapped_column(
+        Numeric(precision=5, scale=4), nullable=True,
+        comment="Alias for parsing_confidence (for compatibility)"
+    )
+    parsing_method: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True,
+        comment="Parsing method used (llm, regex, hybrid)"
+    )
     is_processed: Mapped[bool] = mapped_column(
         default=False, nullable=False, index=True,
         comment="Whether this email has been processed for matching"

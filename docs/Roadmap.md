@@ -116,28 +116,99 @@ Lay the groundwork for development by defining what success looks like, setting 
 
 ---
 
-## Stage 4 — Email fetcher and parser (30–40%)
-**Goal:** Build email ingestion: fetch new emails from IMAP and parse into structured records.
+## Stage 4 — Email Fetcher and Intelligent Parser (30–40%)
 
-**Tasks**
-1. Choose mailbox access approach (IMAP recommended for inbox reading).
-2. Implement the IMAP connector with secure authentication and minimal privileges.
-3. Implement parsing pipeline:
-   - Normalize HTML/text bodies.
-   - Extract fields: amount, currency, date/time, sender name, account/masked number, reference code, and any transaction id.
-   - Tag emails with metadata (raw body, parsed fields, parsing confidence).
-4. Handle different email formats (HTML, plain text) and internationalization issues (commas vs dots, currency symbols).
-5. Implement duplicate detection (same email fetched twice) and message state tracking (seen, processed).
-6. Add robust error handling and alerts for parsing failures.
+**Goal:**  
+Build a hybrid email ingestion system that fetches new emails from IMAP and intelligently parses them into structured transaction records using a combination of **rule-based filters** and a **free LLM for semantic classification and extraction**.
 
-**Deliverables**
-- Email fetcher worker that inserts parsed emails into `emails` table.
-- Sample parser rules and a small corpus of real/representative bank alerts.
-- Parsing telemetry (success/failure rate, examples of low-confidence parses).
+---
 
-**Validation / Checkpoint**
-- Can fetch new emails and produce structured records for 90% of a representative sample corpus.
-- Parsing confidence metrics are available and low-confidence items are flagged.
+### Tasks
+
+1. **Set up mailbox access**
+   - Use IMAP for secure, read-only access to the designated inbox.
+   - Restrict credentials and permissions (use app password if Gmail).
+   - Configure environment variables: `IMAP_HOST`, `IMAP_USER`, `IMAP_PASS`.
+
+2. **Implement the IMAP connector**
+   - Connect to inbox and fetch only new/unread messages.
+   - Retrieve subject, sender, and body (both plain text and HTML).
+   - Store message ID and metadata to prevent duplicates.
+
+3. **Build the hybrid parsing pipeline**
+   **a. Pre-filtering (rule-based):**
+   - Quickly exclude irrelevant messages using:
+     - Sender domain whitelist (e.g., `@gtbank.com`, `@accessbankplc.com`).
+     - Keyword-based subject filter (`ALERT`, `Credit`, `Debit`, `Transaction`).
+     - Blacklist patterns (`Statement`, `Newsletter`, `Password`, `OTP`).
+   - This reduces the load on the LLM by discarding obvious non-alerts.
+
+   **b. LLM classification (semantic check):**
+   - For messages that pass pre-filtering, call a free LLM (e.g., **Groq Llama 3 8B**) to decide if the email is a genuine transaction alert.
+   - Prompt pattern:
+     ```
+     Determine if the following email is a transaction alert (e.g., credit or debit notification).
+     Reply only with "YES" or "NO".
+     Subject: {{subject}}
+     Body: {{body}}
+     ```
+   - Only process further if the LLM responds with “YES.”
+
+   **c. Extraction (LLM-assisted + regex fallback):**
+   - For classified alerts, use the same or another LLM call to extract structured fields:
+     - `amount`, `currency`, `transaction_type`, `sender_name`, `timestamp`, `reference_number`
+   - Use a JSON-enforced prompt and validate output against schema.
+   - If the LLM fails or returns partial data, fall back to regex-based extraction.
+
+4. **Normalize and tag parsed data**
+   - Clean up extracted values:
+     - Convert currency symbols to ISO codes (₦ → NGN).
+     - Convert amount strings (“₦23,500”) → float.
+     - Parse timestamps into ISO format.
+   - Tag each record with:
+     - Parsing method (`regex`, `llm`, `hybrid`)
+     - Confidence score (0–1)
+     - Processing timestamp
+
+5. **Handle multiple formats and encodings**
+   - Account for both HTML and plain-text emails.
+   - Handle Unicode and localized number formats (commas, periods, symbols).
+   - Store the raw text in the `emails` table for reference and audit.
+
+6. **Prevent duplication and track states**
+   - Use `message_id` to ensure the same email isn’t processed twice.
+   - Track message state: `unseen → processed → archived`.
+
+7. **Error handling and observability**
+   - Log parsing failures with error context.
+   - Maintain metrics: total fetched, filtered, classified, extracted, success rate.
+   - Provide a debug mode to print low-confidence cases for review.
+
+---
+
+### Deliverables
+- **Email fetcher worker** capable of connecting to IMAP and ingesting emails.
+- **Hybrid parser module** combining regex pre-filtering and LLM-assisted classification/extraction.
+- **Parsed email dataset** (sample of at least 10–20 test alerts) stored in the `emails` table.
+- **Telemetry report** showing success rate, confidence distribution, and classifier accuracy.
+
+---
+
+### Validation / Checkpoint
+- The agent successfully fetches and processes new emails from IMAP.  
+- For a representative sample (10–20 real or mock alerts):
+  - At least **90% of valid bank alerts** are correctly identified as such.
+  - At least **80% of extracted fields** (amount, sender, reference, timestamp) are accurate.  
+- System logs show per-email confidence scores and low-confidence alerts are flagged.
+- The LLM module can be toggled on/off via config (`USE_LLM=true|false`).
+
+---
+
+### Notes
+- This stage creates the “perception” layer of the agent — the part that understands the world.  
+- The hybrid (regex + LLM) approach keeps costs at zero while dramatically improving precision and recall.  
+- The LLM should only handle short texts and limited volume to stay within free-tier limits.  
+- The design remains modular: if an LLM isn’t available, the regex-only pipeline still works with reduced accuracy.
 
 ---
 

@@ -311,9 +311,8 @@ class TransactionPoller:
                     result["failed"] += 1
                     self.metrics.record_error(f"Store failed: {str(e)}")
 
-            # Commit if UnitOfWork owns the session (not in test mode)
-            if uow._owned_session:
-                await uow.commit()
+            # Always commit within UnitOfWork context
+            await uow.commit()
 
         db_latency = time.time() - db_start
         self.metrics.record_db_latency(db_latency)
