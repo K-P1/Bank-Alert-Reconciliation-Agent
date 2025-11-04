@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal
 
@@ -45,7 +45,7 @@ class ParsedEmail(BaseModel):
 
     # Metadata
     received_at: datetime = Field(..., description="When email was received")
-    parsed_at: datetime = Field(default_factory=datetime.utcnow, description="When email was parsed")
+    parsed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When email was parsed")
     parsing_method: Literal["regex", "llm", "hybrid"] = Field(..., description="Parsing method used")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Parsing confidence score")
     is_alert: bool = Field(..., description="Whether this is a transaction alert")
