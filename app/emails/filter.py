@@ -35,7 +35,9 @@ class RuleBasedFilter:
         """
         # Check sender whitelist
         sender_lower = email.sender.lower()
-        matched_whitelist = any(domain.lower() in sender_lower for domain in self.config.sender_whitelist)
+        matched_whitelist = any(
+            domain.lower() in sender_lower for domain in self.config.sender_whitelist
+        )
 
         if not matched_whitelist:
             return FilterResult(

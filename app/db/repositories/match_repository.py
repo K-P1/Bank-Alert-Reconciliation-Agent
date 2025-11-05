@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from typing import Optional, List
-from sqlalchemy import select, and_, or_, desc
+from sqlalchemy import select, desc
 
 from app.db.models.match import Match
 from app.db.repository import BaseRepository
@@ -18,10 +18,10 @@ class MatchRepository(BaseRepository[Match]):
     async def get_by_transaction_id(self, transaction_id: int) -> List[Match]:
         """
         Get all matches for a transaction.
-        
+
         Args:
             transaction_id: Transaction ID
-            
+
         Returns:
             List of matches
         """
@@ -30,16 +30,16 @@ class MatchRepository(BaseRepository[Match]):
     async def get_matched(self, limit: Optional[int] = None) -> List[Match]:
         """
         Get all successful matches.
-        
+
         Args:
             limit: Maximum number to return
-            
+
         Returns:
             List of matched records
         """
         query = (
             select(self.model)
-            .where(self.model.matched == True)
+            .where(self.model.matched.is_(True))
             .order_by(desc(self.model.confidence))
         )
         if limit:
@@ -51,16 +51,16 @@ class MatchRepository(BaseRepository[Match]):
     async def get_unmatched(self, limit: Optional[int] = None) -> List[Match]:
         """
         Get all unmatched records.
-        
+
         Args:
             limit: Maximum number to return
-            
+
         Returns:
             List of unmatched records
         """
         query = (
             select(self.model)
-            .where(self.model.matched == False)
+            .where(self.model.matched.is_(False))
             .order_by(desc(self.model.matched_at))
         )
         if limit:
@@ -69,15 +69,13 @@ class MatchRepository(BaseRepository[Match]):
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def get_by_confidence_threshold(
-        self, min_confidence: float
-    ) -> List[Match]:
+    async def get_by_confidence_threshold(self, min_confidence: float) -> List[Match]:
         """
         Get matches above a confidence threshold.
-        
+
         Args:
             min_confidence: Minimum confidence score (0-1)
-            
+
         Returns:
             List of matches
         """
@@ -92,10 +90,10 @@ class MatchRepository(BaseRepository[Match]):
     async def get_pending_review(self, limit: Optional[int] = None) -> List[Match]:
         """
         Get matches pending manual review.
-        
+
         Args:
             limit: Maximum number to return
-            
+
         Returns:
             List of matches needing review
         """
@@ -122,7 +120,7 @@ class MatchRepository(BaseRepository[Match]):
     ) -> Match:
         """
         Create a new match record.
-        
+
         Args:
             email_id: Email ID
             transaction_id: Transaction ID (None if unmatched)
@@ -131,7 +129,7 @@ class MatchRepository(BaseRepository[Match]):
             match_method: Matching method used
             match_details: JSON details
             alternative_matches: JSON array of alternatives
-            
+
         Returns:
             Created match instance
         """
@@ -155,13 +153,13 @@ class MatchRepository(BaseRepository[Match]):
     ) -> Optional[Match]:
         """
         Update match status and review information.
-        
+
         Args:
             match_id: Match ID
             status: New status
             reviewed_by: Reviewer identifier
             review_notes: Review notes
-            
+
         Returns:
             Updated match instance
         """
@@ -184,7 +182,7 @@ class MatchRepository(BaseRepository[Match]):
     async def get_match_statistics(self) -> dict:
         """
         Get matching statistics.
-        
+
         Returns:
             Dictionary with match counts and averages
         """
@@ -198,7 +196,7 @@ class MatchRepository(BaseRepository[Match]):
 
         # Average confidence
         avg_query = select(func.avg(self.model.confidence)).where(
-            self.model.matched == True
+            self.model.matched.is_(True)
         )
         result = await self.session.execute(avg_query)
         avg_confidence = result.scalar() or 0.0

@@ -45,7 +45,9 @@ class IMAPConnector:
         """Connect to IMAP server."""
         try:
             logger.info(f"Connecting to IMAP server: {self.host}")
-            self._connection = imaplib.IMAP4_SSL(self.host, timeout=self.config.imap_timeout)
+            self._connection = imaplib.IMAP4_SSL(
+                self.host, timeout=self.config.imap_timeout
+            )
             self._connection.login(self.user, self.password)
             logger.info("IMAP connection established")
         except Exception as e:
@@ -142,17 +144,24 @@ class IMAPConnector:
             # Fetch email data
             if not self._connection:
                 return None
-            
+
             status, msg_data = self._connection.fetch(msg_id.decode(), "(RFC822)")
-            if status != "OK" or not msg_data or not isinstance(msg_data, list) or len(msg_data) == 0:
-                logger.error(f"Failed to fetch message {msg_id}: {status}")
+            if (
+                status != "OK"
+                or not msg_data
+                or not isinstance(msg_data, list)
+                or len(msg_data) == 0
+            ):
+                msg_id_str = msg_id.decode() if isinstance(msg_id, bytes) else msg_id
+                status_str = status.decode() if isinstance(status, bytes) else status
+                logger.error(f"Failed to fetch message {msg_id_str}: {status_str}")
                 return None
 
             # Parse email - msg_data is a list of tuples
             email_tuple = msg_data[0]
             if not isinstance(email_tuple, tuple) or len(email_tuple) < 2:
                 return None
-            
+
             raw_email_data = email_tuple[1]
             if isinstance(raw_email_data, bytes):
                 email_message = email.message_from_bytes(raw_email_data)
@@ -210,7 +219,8 @@ class IMAPConnector:
             )
 
         except Exception as e:
-            logger.error(f"Error parsing email {msg_id}: {e}")
+            msg_id_str = msg_id.decode() if isinstance(msg_id, bytes) else msg_id
+            logger.error(f"Error parsing email {msg_id_str}: {e}")
             return None
 
     def _decode_header(self, header: str) -> str:

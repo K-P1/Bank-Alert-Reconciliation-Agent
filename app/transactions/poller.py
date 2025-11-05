@@ -6,14 +6,13 @@ in the database with deduplication and comprehensive error handling.
 """
 
 import asyncio
-import json
 import time
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import structlog
 
 from app.transactions.config import PollerConfig, get_poller_config
-from app.transactions.clients.base import BaseTransactionClient, APIError, RawTransaction
+from app.transactions.clients.base import BaseTransactionClient, RawTransaction
 from app.transactions.clients.mock_client import MockTransactionClient
 from app.transactions.metrics import PollerMetrics, PollStatus
 from app.transactions.retry import CircuitBreaker, retry_with_backoff, CircuitOpenError
@@ -89,7 +88,9 @@ class TransactionPoller:
             return
 
         self._running = True
-        logger.info("poller_started", interval_minutes=self.config.poll_interval_minutes)
+        logger.info(
+            "poller_started", interval_minutes=self.config.poll_interval_minutes
+        )
 
         # Run immediately on startup if configured
         if self.config.run_on_startup:
@@ -251,7 +252,7 @@ class TransactionPoller:
                 api_latency = time.time() - api_start
                 self.metrics.record_api_call(api_latency)
                 return transactions
-            except Exception as e:
+            except Exception:
                 api_latency = time.time() - api_start
                 self.metrics.record_api_call(api_latency)
                 raise
@@ -261,12 +262,10 @@ class TransactionPoller:
             return await retry_with_backoff(
                 fetch, self.config.retry, operation_name="fetch_transactions"
             )
-        
+
         return await self.circuit_breaker.call_async(fetch_with_retry)
 
-    async def _store_transactions(
-        self, raw_transactions: List[Any]
-    ) -> Dict[str, int]:
+    async def _store_transactions(self, raw_transactions: List[Any]) -> Dict[str, int]:
         """
         Store transactions in database with deduplication.
 

@@ -12,7 +12,13 @@ This module handles:
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.emails.config import EmailConfig, FetcherConfig, FilterConfig, LLMConfig, ParserConfig
+    from app.emails.config import (
+        EmailConfig,
+        FetcherConfig,
+        FilterConfig,
+        LLMConfig,
+        ParserConfig,
+    )
     from app.emails.fetcher import EmailFetcher
     from app.emails.parser import HybridParser
 

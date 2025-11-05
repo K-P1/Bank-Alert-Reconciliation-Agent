@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 from typing import Optional, List
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_
 
 from app.db.models.email import Email
 from app.db.repository import BaseRepository
@@ -18,15 +18,17 @@ class EmailRepository(BaseRepository[Email]):
     async def get_unprocessed(self, limit: Optional[int] = None) -> List[Email]:
         """
         Get unprocessed emails.
-        
+
         Args:
             limit: Maximum number of emails to return
-            
+
         Returns:
             List of unprocessed emails
         """
-        query = select(self.model).where(self.model.is_processed == False).order_by(
-            self.model.parsed_at.asc()
+        query = (
+            select(self.model)
+            .where(self.model.is_processed.is_(False))
+            .order_by(self.model.parsed_at.asc())
         )
         if limit:
             query = query.limit(limit)
@@ -39,12 +41,12 @@ class EmailRepository(BaseRepository[Email]):
     ) -> List[Email]:
         """
         Get emails by amount within a time range.
-        
+
         Args:
             amount: Transaction amount
             start_time: Start of time window
             end_time: End of time window
-            
+
         Returns:
             List of matching emails
         """
@@ -61,10 +63,10 @@ class EmailRepository(BaseRepository[Email]):
     async def get_old_emails(self, days: int) -> List[Email]:
         """
         Get emails older than specified days (for archival/cleanup).
-        
+
         Args:
             days: Age threshold in days
-            
+
         Returns:
             List of old emails
         """
@@ -76,10 +78,10 @@ class EmailRepository(BaseRepository[Email]):
     async def mark_as_processed(self, email_id: int) -> Optional[Email]:
         """
         Mark an email as processed.
-        
+
         Args:
             email_id: Email ID
-            
+
         Returns:
             Updated email instance
         """
@@ -88,10 +90,10 @@ class EmailRepository(BaseRepository[Email]):
     async def get_by_reference(self, reference: str) -> List[Email]:
         """
         Get emails by reference code.
-        
+
         Args:
             reference: Transaction reference
-            
+
         Returns:
             List of matching emails
         """

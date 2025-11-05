@@ -11,7 +11,7 @@ from app.db.base import Base
 class Email(Base):
     """
     Stores parsed email alerts from bank notifications.
-    
+
     Each email represents a bank alert that has been fetched from IMAP
     and parsed to extract transaction-related information.
     """
@@ -23,82 +23,97 @@ class Email(Base):
 
     # Email metadata
     message_id: Mapped[str] = mapped_column(
-        String(255), unique=True, nullable=False, index=True,
-        comment="Unique email message ID from IMAP"
+        String(255),
+        unique=True,
+        nullable=False,
+        index=True,
+        comment="Unique email message ID from IMAP",
     )
     sender: Mapped[str] = mapped_column(
-        String(255), nullable=False,
-        comment="Email sender address"
+        String(255), nullable=False, comment="Email sender address"
     )
     subject: Mapped[str] = mapped_column(
-        String(500), nullable=False,
-        comment="Email subject line"
+        String(500), nullable=False, comment="Email subject line"
     )
     body: Mapped[str] = mapped_column(
-        Text, nullable=False,
-        comment="Full email body (HTML or plain text)"
+        Text, nullable=False, comment="Full email body (HTML or plain text)"
     )
 
     # Parsed transaction data
     amount: Mapped[Optional[float]] = mapped_column(
-        Numeric(precision=18, scale=2), nullable=True, index=True,
-        comment="Parsed transaction amount"
+        Numeric(precision=18, scale=2),
+        nullable=True,
+        index=True,
+        comment="Parsed transaction amount",
     )
     currency: Mapped[Optional[str]] = mapped_column(
-        String(3), nullable=True,
-        comment="Currency code (ISO 4217, e.g., NGN, USD)"
+        String(3), nullable=True, comment="Currency code (ISO 4217, e.g., NGN, USD)"
     )
     reference: Mapped[Optional[str]] = mapped_column(
-        String(255), nullable=True, index=True,
-        comment="Transaction reference or ID from email"
+        String(255),
+        nullable=True,
+        index=True,
+        comment="Transaction reference or ID from email",
     )
     account_info: Mapped[Optional[str]] = mapped_column(
-        String(255), nullable=True,
-        comment="Account number or masked account info"
+        String(255), nullable=True, comment="Account number or masked account info"
     )
 
     # Timestamps
     email_timestamp: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True, index=True,
-        comment="Transaction timestamp extracted from email"
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+        comment="Transaction timestamp extracted from email",
     )
     parsed_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc),
-        comment="When this email was parsed by the system"
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        comment="When this email was parsed by the system",
     )
     received_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc),
-        comment="When this email was received (from email headers)"
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        comment="When this email was received (from email headers)",
     )
 
     # Processing metadata
     parsing_confidence: Mapped[Optional[float]] = mapped_column(
-        Numeric(precision=5, scale=4), nullable=True,
-        comment="Confidence score for parsing accuracy (0-1)"
+        Numeric(precision=5, scale=4),
+        nullable=True,
+        comment="Confidence score for parsing accuracy (0-1)",
     )
     confidence: Mapped[Optional[float]] = mapped_column(
-        Numeric(precision=5, scale=4), nullable=True,
-        comment="Alias for parsing_confidence (for compatibility)"
+        Numeric(precision=5, scale=4),
+        nullable=True,
+        comment="Alias for parsing_confidence (for compatibility)",
     )
     parsing_method: Mapped[Optional[str]] = mapped_column(
-        String(50), nullable=True,
-        comment="Parsing method used (llm, regex, hybrid)"
+        String(50), nullable=True, comment="Parsing method used (llm, regex, hybrid)"
     )
     is_processed: Mapped[bool] = mapped_column(
-        default=False, nullable=False, index=True,
-        comment="Whether this email has been processed for matching"
+        default=False,
+        nullable=False,
+        index=True,
+        comment="Whether this email has been processed for matching",
     )
     processing_error: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True,
-        comment="Any error encountered during processing"
+        Text, nullable=True, comment="Any error encountered during processing"
     )
 
     # Audit fields
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
     # Indexes for common queries

@@ -10,7 +10,9 @@ import structlog
 from fastapi import Request
 
 
-def _add_log_level(logger: Any, method_name: str, event_dict: Dict[str, Any]) -> Dict[str, Any]:
+def _add_log_level(
+    logger: Any, method_name: str, event_dict: Dict[str, Any]
+) -> Dict[str, Any]:
     event_dict["level"] = method_name
     return event_dict
 
@@ -47,14 +49,21 @@ async def request_id_middleware(request: Request, call_next):  # type: ignore[no
     start = time.perf_counter()
 
     request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
-    structlog.contextvars.bind_contextvars(request_id=request_id, path=str(request.url.path))
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id, path=str(request.url.path)
+    )
 
     try:
         response = await call_next(request)
     finally:
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
         logger = structlog.get_logger("request")
-        logger.info("request.completed", method=request.method, status=getattr(response, "status_code", 0), duration_ms=duration_ms)
+        logger.info(
+            "request.completed",
+            method=request.method,
+            status=getattr(response, "status_code", 0),
+            duration_ms=duration_ms,
+        )
         structlog.contextvars.clear_contextvars()
 
     response.headers["x-request-id"] = request_id

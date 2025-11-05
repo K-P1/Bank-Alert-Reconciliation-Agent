@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, TypedDict
+from typing import Any, Dict, Optional
 
 import structlog
 from fastapi import APIRouter, HTTPException
@@ -65,11 +65,22 @@ async def a2a_endpoint(request: Request, agent_name: str) -> JSONResponse:  # ty
         logger.warning("jsonrpc.invalid_request", error=str(exc))
         return JSONResponse(
             status_code=200,
-            content=JSONRPCResponse(id=payload.get("id"), error=JSONRPCError(code=-32600, message="Invalid Request")).model_dump(),
+            content=JSONRPCResponse(
+                id=payload.get("id"),
+                error=JSONRPCError(code=-32600, message="Invalid Request"),
+            ).model_dump(),
         )
 
     if req.jsonrpc != "2.0":
-        return JSONResponse(status_code=200, content=JSONRPCResponse(id=req.id, error=JSONRPCError(code=-32600, message="Invalid Request: jsonrpc must be '2.0'" )).model_dump())
+        return JSONResponse(
+            status_code=200,
+            content=JSONRPCResponse(
+                id=req.id,
+                error=JSONRPCError(
+                    code=-32600, message="Invalid Request: jsonrpc must be '2.0'"
+                ),
+            ).model_dump(),
+        )
 
     # Implement only 'status' for Stage 1
     if req.method == "status":

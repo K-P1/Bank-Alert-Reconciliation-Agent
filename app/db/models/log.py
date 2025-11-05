@@ -11,7 +11,7 @@ from app.db.base import Base
 class Log(Base):
     """
     Stores system logs, events, and audit trail.
-    
+
     Used for tracking system operations, errors, and creating an
     audit trail of all reconciliation activities.
     """
@@ -23,60 +23,65 @@ class Log(Base):
 
     # Log metadata
     level: Mapped[str] = mapped_column(
-        String(20), nullable=False, index=True,
-        comment="Log level (e.g., 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')"
+        String(20),
+        nullable=False,
+        index=True,
+        comment="Log level (e.g., 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')",
     )
     event: Mapped[str] = mapped_column(
-        String(100), nullable=False, index=True,
-        comment="Event type or category (e.g., 'email_fetch', 'matching', 'api_call')"
+        String(100),
+        nullable=False,
+        index=True,
+        comment="Event type or category (e.g., 'email_fetch', 'matching', 'api_call')",
     )
-    message: Mapped[str] = mapped_column(
-        Text, nullable=False,
-        comment="Log message"
-    )
+    message: Mapped[str] = mapped_column(Text, nullable=False, comment="Log message")
 
     # Context
     component: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True, index=True,
-        comment="Component that generated the log (e.g., 'email_fetcher', 'matcher')"
+        String(100),
+        nullable=True,
+        index=True,
+        comment="Component that generated the log (e.g., 'email_fetcher', 'matcher')",
     )
     request_id: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True, index=True,
-        comment="Request ID for tracing (from x-request-id header)"
+        String(100),
+        nullable=True,
+        index=True,
+        comment="Request ID for tracing (from x-request-id header)",
     )
     user_id: Mapped[Optional[str]] = mapped_column(
-        String(255), nullable=True,
-        comment="User ID if applicable"
+        String(255), nullable=True, comment="User ID if applicable"
     )
 
     # Additional details
     details: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True,
-        comment="JSON blob with additional context"
+        Text, nullable=True, comment="JSON blob with additional context"
     )
     exception: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True,
-        comment="Exception traceback if this is an error log"
+        Text, nullable=True, comment="Exception traceback if this is an error log"
     )
 
     # Related entities
     email_id: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, index=True,
-        comment="Related email ID if applicable"
+        Integer, nullable=True, index=True, comment="Related email ID if applicable"
     )
     transaction_id: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, index=True,
-        comment="Related transaction ID if applicable"
+        Integer,
+        nullable=True,
+        index=True,
+        comment="Related transaction ID if applicable",
     )
     match_id: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True, index=True,
-        comment="Related match ID if applicable"
+        Integer, nullable=True, index=True, comment="Related match ID if applicable"
     )
 
     # Timestamp
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True,
-        comment="When this log entry was created"
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+        comment="When this log entry was created",
     )
 
     # Indexes for common queries

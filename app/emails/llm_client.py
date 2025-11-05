@@ -7,7 +7,7 @@ import logging
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import httpx
 
@@ -140,7 +140,9 @@ class LLMClient:
                     return content.strip()
 
                 except httpx.HTTPStatusError as e:
-                    logger.error(f"HTTP error from Groq API (attempt {attempt + 1}): {e}")
+                    logger.error(
+                        f"HTTP error from Groq API (attempt {attempt + 1}): {e}"
+                    )
                     if attempt == self.config.max_retries:
                         raise
                 except Exception as e:
@@ -248,7 +250,11 @@ JSON:"""
                 currency = currency.upper()
 
             transaction_type = data.get("transaction_type")
-            if transaction_type and transaction_type.lower() in ["credit", "debit", "unknown"]:
+            if transaction_type and transaction_type.lower() in [
+                "credit",
+                "debit",
+                "unknown",
+            ]:
                 transaction_type = transaction_type.lower()
             else:
                 transaction_type = "unknown"
@@ -261,7 +267,9 @@ JSON:"""
             timestamp = None
             if data.get("timestamp"):
                 try:
-                    timestamp = datetime.fromisoformat(data["timestamp"].replace("Z", "+00:00"))
+                    timestamp = datetime.fromisoformat(
+                        data["timestamp"].replace("Z", "+00:00")
+                    )
                 except Exception:
                     pass
 

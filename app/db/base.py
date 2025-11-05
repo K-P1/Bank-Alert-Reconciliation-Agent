@@ -39,7 +39,7 @@ AsyncSessionLocal = async_sessionmaker(
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Dependency for getting async database sessions.
-    
+
     Usage:
         @app.get("/items")
         async def read_items(db: AsyncSession = Depends(get_db)):

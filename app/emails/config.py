@@ -4,18 +4,28 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class FetcherConfig(BaseModel):
     """Configuration for IMAP email fetcher."""
 
     enabled: bool = Field(default=True, description="Enable email fetcher")
-    poll_interval_minutes: int = Field(default=15, ge=1, le=1440, description="Fetch interval in minutes")
-    batch_size: int = Field(default=50, ge=1, le=500, description="Max emails per fetch")
-    mark_as_read: bool = Field(default=True, description="Mark emails as read after fetching")
-    start_immediately: bool = Field(default=False, description="Start fetching on app startup")
-    imap_timeout: int = Field(default=30, ge=5, le=120, description="IMAP connection timeout in seconds")
+    poll_interval_minutes: int = Field(
+        default=15, ge=1, le=1440, description="Fetch interval in minutes"
+    )
+    batch_size: int = Field(
+        default=50, ge=1, le=500, description="Max emails per fetch"
+    )
+    mark_as_read: bool = Field(
+        default=True, description="Mark emails as read after fetching"
+    )
+    start_immediately: bool = Field(
+        default=False, description="Start fetching on app startup"
+    )
+    imap_timeout: int = Field(
+        default=30, ge=5, le=120, description="IMAP connection timeout in seconds"
+    )
 
 
 class FilterConfig(BaseModel):
@@ -88,7 +98,9 @@ class FilterConfig(BaseModel):
     )
 
     # Minimum body length
-    min_body_length: int = Field(default=50, ge=10, description="Minimum body length to consider")
+    min_body_length: int = Field(
+        default=50, ge=10, description="Minimum body length to consider"
+    )
 
 
 class LLMConfig(BaseModel):
@@ -102,30 +114,48 @@ class LLMConfig(BaseModel):
     max_retries: int = Field(default=2, ge=0, le=5, description="Max retry attempts")
 
     # Classification settings
-    classification_temperature: float = Field(default=0.0, ge=0.0, le=2.0, description="Temperature for classification")
-    classification_max_tokens: int = Field(default=10, ge=5, le=50, description="Max tokens for classification")
+    classification_temperature: float = Field(
+        default=0.0, ge=0.0, le=2.0, description="Temperature for classification"
+    )
+    classification_max_tokens: int = Field(
+        default=10, ge=5, le=50, description="Max tokens for classification"
+    )
 
     # Extraction settings
-    extraction_temperature: float = Field(default=0.1, ge=0.0, le=2.0, description="Temperature for extraction")
-    extraction_max_tokens: int = Field(default=500, ge=100, le=2000, description="Max tokens for extraction")
+    extraction_temperature: float = Field(
+        default=0.1, ge=0.0, le=2.0, description="Temperature for extraction"
+    )
+    extraction_max_tokens: int = Field(
+        default=500, ge=100, le=2000, description="Max tokens for extraction"
+    )
 
 
 class ParserConfig(BaseModel):
     """Configuration for email parser."""
 
     # Confidence thresholds
-    min_confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Minimum confidence to accept")
-    llm_confidence_weight: float = Field(default=0.8, ge=0.0, le=1.0, description="Weight for LLM confidence")
-    regex_confidence_weight: float = Field(default=0.5, ge=0.0, le=1.0, description="Weight for regex confidence")
+    min_confidence_threshold: float = Field(
+        default=0.7, ge=0.0, le=1.0, description="Minimum confidence to accept"
+    )
+    llm_confidence_weight: float = Field(
+        default=0.8, ge=0.0, le=1.0, description="Weight for LLM confidence"
+    )
+    regex_confidence_weight: float = Field(
+        default=0.5, ge=0.0, le=1.0, description="Weight for regex confidence"
+    )
 
     # Parsing behavior
     fallback_to_regex: bool = Field(default=True, description="Use regex if LLM fails")
     require_amount: bool = Field(default=True, description="Require amount field")
-    require_timestamp: bool = Field(default=False, description="Require timestamp field")
+    require_timestamp: bool = Field(
+        default=False, description="Require timestamp field"
+    )
 
     # Debug mode
     debug: bool = Field(default=False, description="Enable debug logging")
-    log_low_confidence: bool = Field(default=True, description="Log low confidence cases")
+    log_low_confidence: bool = Field(
+        default=True, description="Log low confidence cases"
+    )
 
 
 class EmailConfig(BaseModel):

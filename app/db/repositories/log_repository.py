@@ -26,7 +26,7 @@ class LogRepository(BaseRepository[Log]):
     ) -> Log:
         """
         Create a new log entry.
-        
+
         Args:
             level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
             event: Event type
@@ -38,7 +38,7 @@ class LogRepository(BaseRepository[Log]):
             email_id: Related email ID
             transaction_id: Related transaction ID
             match_id: Related match ID
-            
+
         Returns:
             Created log instance
         """
@@ -55,16 +55,14 @@ class LogRepository(BaseRepository[Log]):
             match_id=match_id,
         )
 
-    async def get_by_level(
-        self, level: str, limit: Optional[int] = None
-    ) -> List[Log]:
+    async def get_by_level(self, level: str, limit: Optional[int] = None) -> List[Log]:
         """
         Get logs by level.
-        
+
         Args:
             level: Log level
             limit: Maximum number to return
-            
+
         Returns:
             List of logs
         """
@@ -79,16 +77,14 @@ class LogRepository(BaseRepository[Log]):
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def get_by_event(
-        self, event: str, limit: Optional[int] = None
-    ) -> List[Log]:
+    async def get_by_event(self, event: str, limit: Optional[int] = None) -> List[Log]:
         """
         Get logs by event type.
-        
+
         Args:
             event: Event type
             limit: Maximum number to return
-            
+
         Returns:
             List of logs
         """
@@ -108,11 +104,11 @@ class LogRepository(BaseRepository[Log]):
     ) -> List[Log]:
         """
         Get logs by component.
-        
+
         Args:
             component: Component name
             limit: Maximum number to return
-            
+
         Returns:
             List of logs
         """
@@ -130,10 +126,10 @@ class LogRepository(BaseRepository[Log]):
     async def get_by_request_id(self, request_id: str) -> List[Log]:
         """
         Get all logs for a specific request (for tracing).
-        
+
         Args:
             request_id: Request ID
-            
+
         Returns:
             List of logs for that request
         """
@@ -150,11 +146,11 @@ class LogRepository(BaseRepository[Log]):
     ) -> List[Log]:
         """
         Get error and critical logs from the last N hours.
-        
+
         Args:
             hours: Hours back to look
             limit: Maximum number to return
-            
+
         Returns:
             List of error logs
         """
@@ -179,11 +175,11 @@ class LogRepository(BaseRepository[Log]):
     ) -> List[Log]:
         """
         Get recent logs.
-        
+
         Args:
             hours: Hours back to look
             limit: Maximum number to return
-            
+
         Returns:
             List of recent logs
         """
@@ -202,10 +198,10 @@ class LogRepository(BaseRepository[Log]):
     async def cleanup_old_logs(self, days: int) -> int:
         """
         Delete logs older than specified days.
-        
+
         Args:
             days: Age threshold
-            
+
         Returns:
             Number of deleted records
         """

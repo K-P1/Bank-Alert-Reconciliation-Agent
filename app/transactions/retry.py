@@ -7,9 +7,8 @@ to handle transient failures gracefully.
 
 import asyncio
 import random
-import time
 from typing import Callable, TypeVar, Any, Optional, Awaitable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from enum import Enum
 import structlog
 
@@ -77,7 +76,7 @@ class CircuitBreaker:
             result = func()
             self._on_success()
             return result
-        except Exception as e:
+        except Exception:
             self._on_failure()
             raise
 
@@ -108,7 +107,7 @@ class CircuitBreaker:
             result = await func()
             self._on_success()
             return result
-        except Exception as e:
+        except Exception:
             self._on_failure()
             raise
 
@@ -150,7 +149,9 @@ class CircuitBreaker:
         if not self.last_failure_time:
             return True
 
-        time_since_failure = (datetime.now(timezone.utc) - self.last_failure_time).total_seconds()
+        time_since_failure = (
+            datetime.now(timezone.utc) - self.last_failure_time
+        ).total_seconds()
         return time_since_failure >= self.config.timeout
 
     def _transition_to_open(self):

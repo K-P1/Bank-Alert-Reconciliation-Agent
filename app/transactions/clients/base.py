@@ -84,7 +84,9 @@ class BaseTransactionClient(ABC):
         pass
 
     @abstractmethod
-    async def get_transaction_by_id(self, transaction_id: str) -> Optional[RawTransaction]:
+    async def get_transaction_by_id(
+        self, transaction_id: str
+    ) -> Optional[RawTransaction]:
         """
         Fetch a single transaction by ID.
 

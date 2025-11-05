@@ -12,7 +12,7 @@ logger = structlog.get_logger(__name__)
 class RetentionPolicy:
     """
     Manages data retention and archival policies.
-    
+
     Implements cleanup of old emails, logs, and other data according
     to configured retention periods.
     """
@@ -27,11 +27,11 @@ class RetentionPolicy:
     ) -> Dict[str, Any]:
         """
         Clean up old emails that exceed retention period.
-        
+
         Args:
             days: Retention period in days (defaults to config or 30)
             dry_run: If True, only count what would be deleted
-            
+
         Returns:
             Dictionary with cleanup results
         """
@@ -41,7 +41,7 @@ class RetentionPolicy:
                 days = await uow.config.get_value(
                     "retention.email_days", self.default_email_retention_days
                 )
-            
+
             # Ensure days is an int
             days = int(days) if days is not None else self.default_email_retention_days
 
@@ -93,11 +93,11 @@ class RetentionPolicy:
     ) -> Dict[str, Any]:
         """
         Clean up old log entries that exceed retention period.
-        
+
         Args:
             days: Retention period in days (defaults to config or 90)
             dry_run: If True, only count what would be deleted
-            
+
         Returns:
             Dictionary with cleanup results
         """
@@ -107,7 +107,7 @@ class RetentionPolicy:
                 days = await uow.config.get_value(
                     "retention.log_days", self.default_log_retention_days
                 )
-            
+
             # Ensure days is an int
             days = int(days) if days is not None else self.default_log_retention_days
 
@@ -130,6 +130,7 @@ class RetentionPolicy:
 
             # Dry run - count what would be deleted
             from datetime import timedelta
+
             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
             from sqlalchemy import select, func
             from app.db.models.log import Log
@@ -152,14 +153,14 @@ class RetentionPolicy:
     ) -> Dict[str, Any]:
         """
         Archive old match records (future implementation).
-        
+
         This could move old matches to a separate archive table or
         export them to cold storage.
-        
+
         Args:
             days: Age threshold for archival
             dry_run: If True, only count what would be archived
-            
+
         Returns:
             Dictionary with archival results
         """
@@ -181,10 +182,10 @@ class RetentionPolicy:
     async def run_all_policies(self, dry_run: bool = False) -> Dict[str, Any]:
         """
         Run all retention policies.
-        
+
         Args:
             dry_run: If True, only report what would be done
-            
+
         Returns:
             Dictionary with results from all policies
         """
@@ -206,7 +207,7 @@ class RetentionPolicy:
 async def run_retention_cleanup(dry_run: bool = True):
     """
     Convenience function to run retention cleanup.
-    
+
     Args:
         dry_run: If True, only report what would be done
     """
@@ -222,7 +223,7 @@ async def run_retention_cleanup(dry_run: bool = True):
 
     if "emails" in results:
         email_data = results["emails"]
-        print(f"Emails:")
+        print("Emails:")
         print(f"  - Retention period: {email_data['days']} days")
         if "found" in email_data:
             print(f"  - Found: {email_data['found']}")
@@ -231,7 +232,7 @@ async def run_retention_cleanup(dry_run: bool = True):
 
     if "logs" in results:
         log_data = results["logs"]
-        print(f"\nLogs:")
+        print("\nLogs:")
         print(f"  - Retention period: {log_data['days']} days")
         if "found" in log_data:
             print(f"  - Found: {log_data['found']}")

@@ -1,7 +1,6 @@
 """Tests for normalization and enrichment functions."""
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from app.normalization.normalizer import (
@@ -14,7 +13,6 @@ from app.normalization.normalizer import (
     normalize_email,
     normalize_transaction,
 )
-from app.normalization.models import NormalizedReference, EnrichmentMetadata
 from app.emails.models import ParsedEmail
 
 
@@ -239,7 +237,7 @@ class TestBankEnrichment:
         enrichment = enrich_bank_info(
             sender_email="alerts@gtbank.com",
             sender_name="First Bank",
-            subject="Zenith Bank"
+            subject="Zenith Bank",
         )
         assert enrichment.bank_code == "GTB"
 
@@ -248,7 +246,7 @@ class TestBankEnrichment:
         enrichment = enrich_bank_info(
             sender_email="test@example.com",
             sender_name="Unknown Bank",
-            subject="Transaction"
+            subject="Transaction",
         )
         assert enrichment.bank_code is None
         assert enrichment.bank_name is None
@@ -288,7 +286,7 @@ class TestCompositeKeyGeneration:
     def test_create_composite_key_time_bucketing(self):
         """Test time window bucketing."""
         ref = normalize_reference("TEST")
-        
+
         # Same day, different hours in same bucket
         key1 = create_composite_key(
             amount=Decimal("1000.00"),
@@ -327,7 +325,7 @@ class TestCompositeKeyGeneration:
     def test_create_composite_key_missing_fields(self):
         """Test composite key with missing required fields."""
         ref = normalize_reference("TEST")
-        
+
         # Missing amount
         key = create_composite_key(
             amount=None,
@@ -381,7 +379,7 @@ class TestNormalizeEmail:
         )
 
         normalized = normalize_email(parsed_email)
-        
+
         assert normalized.message_id == "test-001"
         assert normalized.amount == Decimal("23500.00")
         assert normalized.currency == "NGN"
@@ -411,7 +409,7 @@ class TestNormalizeEmail:
         )
 
         normalized = normalize_email(parsed_email)
-        
+
         assert normalized.message_id == "test-002"
         assert normalized.amount is None
         assert normalized.currency is None
@@ -478,7 +476,7 @@ class TestEdgeCases:
             ("1234.56", Decimal("1234.56")),
             ("1234", Decimal("1234.00")),
         ]
-        
+
         for input_val, expected in test_cases:
             result = normalize_amount(input_val)
             assert result == expected, f"Failed for input: {input_val}"
@@ -493,7 +491,7 @@ class TestEdgeCases:
             ("USD", "USD"),
             ("dollar", "USD"),
         ]
-        
+
         for input_val, expected in test_cases:
             result = normalize_currency(input_val)
             assert result == expected, f"Failed for input: {input_val}"
@@ -508,7 +506,7 @@ class TestEdgeCases:
             "04 Nov 2025 10:30:00",
             "2025-11-04T10:30:00Z",
         ]
-        
+
         for date_str in test_cases:
             result = normalize_timestamp(date_str)
             assert result is not None, f"Failed to parse: {date_str}"

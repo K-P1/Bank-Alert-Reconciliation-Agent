@@ -58,7 +58,9 @@ async def lifespan(app: FastAPI):
         logger.info("Email fetcher stopped")
 
 
-app = FastAPI(title="Bank Alert Reconciliation Agent", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Bank Alert Reconciliation Agent", version="0.1.0", lifespan=lifespan
+)
 app.middleware("http")(request_id_middleware)
 app.include_router(a2a_router)
 app.include_router(transactions_router)

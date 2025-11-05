@@ -68,7 +68,7 @@ class RegexExtractor:
             Extraction result
         """
         text = f"{subject}\n{body}"
-        patterns_matched = {}
+        patterns_matched: dict[str, str] = {}
 
         # Extract amount
         amount = self._extract_amount(text, patterns_matched)
@@ -77,7 +77,9 @@ class RegexExtractor:
         currency = self._extract_currency(text, patterns_matched)
 
         # Determine transaction type from subject/body
-        transaction_type = self._determine_transaction_type(subject, body, patterns_matched)
+        transaction_type = self._determine_transaction_type(
+            subject, body, patterns_matched
+        )
 
         # Extract reference
         reference = self._extract_reference(text, patterns_matched)

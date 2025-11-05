@@ -8,14 +8,14 @@ if %errorlevel% neq 0 (
 )
 
 echo Formatting with Black...
-black .
+uv run black .
 if %errorlevel% neq 0 (
     echo Black formatting failed!
     exit /b %errorlevel%
 )
 
 echo Running Mypy type checks...
-mypy .
+uv run mypy .
 if %errorlevel% neq 0 (
     echo Mypy failed!
     exit /b %errorlevel%

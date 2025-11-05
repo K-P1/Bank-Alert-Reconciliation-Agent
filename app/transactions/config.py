@@ -5,7 +5,7 @@ Defines settings for polling intervals, retry policies,
 API client configuration, and operational parameters.
 """
 
-from typing import Dict, Any, Optional
+from typing import Optional
 from pydantic import BaseModel, Field
 from datetime import timedelta
 
@@ -17,9 +17,7 @@ class RetryConfig(BaseModel):
     initial_delay: float = Field(
         default=1.0, gt=0, description="Initial delay in seconds"
     )
-    max_delay: float = Field(
-        default=60.0, gt=0, description="Maximum delay in seconds"
-    )
+    max_delay: float = Field(default=60.0, gt=0, description="Maximum delay in seconds")
     exponential_base: float = Field(default=2.0, gt=1, description="Backoff multiplier")
     jitter: bool = Field(
         default=True, description="Add random jitter to prevent thundering herd"

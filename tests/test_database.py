@@ -1,7 +1,7 @@
 """Tests for database models and repositories."""
 
 import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from app.db.unit_of_work import UnitOfWork
 
 
@@ -53,7 +53,7 @@ class TestEmailRepository:
         """Test getting unprocessed emails."""
         async with UnitOfWork(session=db_session) as uow:
             # Create unprocessed email
-            email = await uow.emails.create(
+            await uow.emails.create(
                 message_id="test-unprocessed@test.com",
                 sender="alerts@bank.com",
                 subject="Unprocessed",

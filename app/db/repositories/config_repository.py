@@ -2,7 +2,6 @@
 
 from typing import Optional, List, Any
 import json
-from sqlalchemy import select
 
 from app.db.models.config import Config
 from app.db.repository import BaseRepository
@@ -18,11 +17,11 @@ class ConfigRepository(BaseRepository[Config]):
     async def get_value(self, key: str, default: Any = None) -> Any:
         """
         Get a config value parsed to its correct type.
-        
+
         Args:
             key: Config key
             default: Default value if not found
-            
+
         Returns:
             Typed config value or default
         """
@@ -44,7 +43,7 @@ class ConfigRepository(BaseRepository[Config]):
     ) -> Config:
         """
         Set a config value (create or update).
-        
+
         Args:
             key: Config key
             value: Config value
@@ -54,7 +53,7 @@ class ConfigRepository(BaseRepository[Config]):
             is_sensitive: Whether sensitive
             is_editable: Whether editable
             updated_by: Who updated it
-            
+
         Returns:
             Config instance
         """
@@ -94,10 +93,10 @@ class ConfigRepository(BaseRepository[Config]):
     async def get_by_category(self, category: str) -> List[Config]:
         """
         Get all configs in a category.
-        
+
         Args:
             category: Config category
-            
+
         Returns:
             List of configs
         """
@@ -110,10 +109,10 @@ class ConfigRepository(BaseRepository[Config]):
     async def get_all_as_dict(self, category: Optional[str] = None) -> dict:
         """
         Get all configs as a dictionary (key -> value).
-        
+
         Args:
             category: Optional category filter
-            
+
         Returns:
             Dictionary of config key-value pairs
         """
@@ -127,10 +126,10 @@ class ConfigRepository(BaseRepository[Config]):
     async def delete_by_key(self, key: str) -> bool:
         """
         Delete a config by key.
-        
+
         Args:
             key: Config key
-            
+
         Returns:
             True if deleted
         """

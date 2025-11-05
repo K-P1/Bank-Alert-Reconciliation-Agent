@@ -5,7 +5,6 @@ Tracks polling performance, success rates, latency, and provides
 observability into the poller's operations.
 """
 
-import time
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field, asdict
@@ -223,9 +222,7 @@ class PollerMetrics:
             history = history[:limit]
         return history
 
-    def get_aggregate_metrics(
-        self, hours: Optional[int] = None
-    ) -> AggregateMetrics:
+    def get_aggregate_metrics(self, hours: Optional[int] = None) -> AggregateMetrics:
         """
         Get aggregated metrics across recent runs.
 

@@ -37,7 +37,9 @@ class EmailFetcher:
 
         # Validate IMAP settings
         if not all([settings.IMAP_HOST, settings.IMAP_USER, settings.IMAP_PASS]):
-            raise ValueError("IMAP settings not configured (IMAP_HOST, IMAP_USER, IMAP_PASS required)")
+            raise ValueError(
+                "IMAP settings not configured (IMAP_HOST, IMAP_USER, IMAP_PASS required)"
+            )
 
         # Background task management
         self._task: asyncio.Task | None = None
@@ -161,11 +163,16 @@ class EmailFetcher:
                         emails_processed += 1
 
                     except Exception as e:
-                        logger.error(f"Error processing email {raw_email.message_id}: {e}")
+                        logger.error(
+                            f"Error processing email {raw_email.message_id}: {e}"
+                        )
                         self.metrics.record_failed(str(e))
                         continue
 
                 # Determine final status
+                from typing import Literal
+
+                status: Literal["SUCCESS", "PARTIAL", "FAILED"]
                 if emails_stored == len(raw_emails):
                     status = "SUCCESS"
                 elif emails_stored > 0:
@@ -208,9 +215,13 @@ class EmailFetcher:
             List of raw emails
         """
         # Type narrowing - these are validated in __init__
-        if not self.settings.IMAP_HOST or not self.settings.IMAP_USER or not self.settings.IMAP_PASS:
+        if (
+            not self.settings.IMAP_HOST
+            or not self.settings.IMAP_USER
+            or not self.settings.IMAP_PASS
+        ):
             raise RuntimeError("IMAP settings not configured")
-        
+
         with IMAPConnector(
             host=self.settings.IMAP_HOST,
             user=self.settings.IMAP_USER,

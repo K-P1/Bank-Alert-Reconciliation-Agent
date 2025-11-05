@@ -197,25 +197,26 @@ class MockTransactionClient(BaseTransactionClient):
 
         # Pick a random template
         template = random.choice(self._transaction_templates)
-        tx_type = template["type"]
+        tx_type: str = str(template["type"])
 
         # Generate description with realistic details
+        detail: str
         if "merchants" in template:
-            detail = random.choice(template["merchants"])
+            detail = str(random.choice(template["merchants"]))
         elif "names" in template:
-            detail = random.choice(template["names"])
+            detail = str(random.choice(template["names"]))
         elif "locations" in template:
-            detail = random.choice(template["locations"])
+            detail = str(random.choice(template["locations"]))
         elif "companies" in template:
-            detail = random.choice(template["companies"])
+            detail = str(random.choice(template["companies"]))
         elif "networks" in template:
-            detail = random.choice(template["networks"])
+            detail = str(random.choice(template["networks"]))
         elif "charge_types" in template:
-            detail = random.choice(template["charge_types"])
+            detail = str(random.choice(template["charge_types"]))
         else:
             detail = "Transaction"
 
-        description = template["description"].format(
+        description: str = str(template["description"]).format(
             merchant=detail,
             name=detail,
             location=detail,

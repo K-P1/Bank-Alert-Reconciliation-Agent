@@ -23,14 +23,14 @@ def print_status(status: dict):
     print(f"Enabled: {status['enabled']}")
     print(f"Last Poll: {status['last_poll_time'] or 'Never'}")
 
-    print(f"\n--- Circuit Breaker ---")
+    print("\n--- Circuit Breaker ---")
     cb = status["circuit_breaker"]
     print(f"State: {cb['state']}")
     print(f"Failures: {cb['failure_count']}")
     print(f"Successes: {cb['success_count']}")
 
     if status["last_run"]:
-        print(f"\n--- Last Run ---")
+        print("\n--- Last Run ---")
         run = status["last_run"]
         print(f"Run ID: {run['run_id']}")
         print(f"Status: {run['status']}")
@@ -39,10 +39,10 @@ def print_status(status: dict):
         print(f"New: {run['transactions_new']}")
         print(f"Duplicates: {run['transactions_duplicate']}")
         print(f"Stored: {run['transactions_stored']}")
-        if run['error_count'] > 0:
+        if run["error_count"] > 0:
             print(f"Errors: {run['error_count']}")
 
-    print(f"\n--- 24 Hour Metrics ---")
+    print("\n--- 24 Hour Metrics ---")
     metrics = status["metrics_24h"]
     print(f"Total Runs: {metrics['total_runs']}")
     print(f"Successful: {metrics['successful_runs']}")
@@ -51,7 +51,7 @@ def print_status(status: dict):
     print(f"Total Transactions: {metrics['total_transactions']}")
     print(f"Avg Duration: {metrics['avg_duration_seconds']:.2f}s")
 
-    print(f"\n--- Configuration ---")
+    print("\n--- Configuration ---")
     config = status["config"]
     print(f"Poll Interval: {config['poll_interval_minutes']} minutes")
     print(f"Lookback: {config['lookback_hours']} hours")
@@ -62,7 +62,7 @@ def print_status(status: dict):
 
 def print_metrics(metrics: dict, hours: Optional[int] = None):
     """Pretty print metrics."""
-    print(f"\n=== Transaction Poller Metrics ===")
+    print("\n=== Transaction Poller Metrics ===")
     if hours:
         print(f"(Last {hours} hours)\n")
     else:
@@ -82,17 +82,17 @@ def print_metrics(metrics: dict, hours: Optional[int] = None):
     print(f"Avg API Latency: {agg['avg_api_latency_seconds']:.2f}s")
     print(f"Avg Transactions/Run: {agg['avg_transactions_per_run']:.1f}")
 
-    if agg['first_run']:
+    if agg["first_run"]:
         print(f"\nFirst Run: {agg['first_run']}")
-    if agg['last_run']:
+    if agg["last_run"]:
         print(f"Last Run: {agg['last_run']}")
-    if agg['last_success']:
+    if agg["last_success"]:
         print(f"Last Success: {agg['last_success']}")
-    if agg['last_failure']:
+    if agg["last_failure"]:
         print(f"Last Failure: {agg['last_failure']}")
 
     if metrics["recent_runs"]:
-        print(f"\n--- Recent Runs ---")
+        print("\n--- Recent Runs ---")
         for run in metrics["recent_runs"][:5]:
             print(
                 f"{run['started_at']}: {run['status']} - "
@@ -110,14 +110,14 @@ async def poll_command():
 
     try:
         result = await poller.poll_once()
-        print(f"\nPoll completed!")
+        print("\nPoll completed!")
         print(f"Run ID: {result['run_id']}")
         print(f"Status: {result['status']}")
         print(f"Fetched: {result['transactions_fetched']}")
         print(f"New: {result['transactions_new']}")
         print(f"Duplicates: {result['transactions_duplicate']}")
         print(f"Stored: {result['transactions_stored']}")
-        if result.get('transactions_failed', 0) > 0:
+        if result.get("transactions_failed", 0) > 0:
             print(f"Failed: {result['transactions_failed']}")
         print(f"Duration: {result.get('duration_seconds', 0):.2f}s")
         return 0
@@ -148,7 +148,7 @@ async def run_command():
     config = get_poller_config()
     print(f"Poll interval: {config.poll_interval_minutes} minutes")
     print(f"Lookback: {config.lookback_hours} hours")
-    print(f"Press Ctrl+C to stop\n")
+    print("Press Ctrl+C to stop\n")
 
     poller = TransactionPoller()
 

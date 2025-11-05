@@ -11,7 +11,7 @@ from app.db.base import Base
 class Transaction(Base):
     """
     Stores transactions fetched from external banking or payment APIs.
-    
+
     These transactions are polled periodically and used as the baseline
     for matching against incoming bank alert emails.
     """
@@ -23,86 +23,105 @@ class Transaction(Base):
 
     # Transaction identification
     transaction_id: Mapped[str] = mapped_column(
-        String(255), unique=True, nullable=False, index=True,
-        comment="Unique transaction ID from external system"
+        String(255),
+        unique=True,
+        nullable=False,
+        index=True,
+        comment="Unique transaction ID from external system",
     )
     external_source: Mapped[str] = mapped_column(
-        String(100), nullable=False, index=True,
-        comment="Source system (e.g., 'paystack', 'flutterwave', 'manual')"
+        String(100),
+        nullable=False,
+        index=True,
+        comment="Source system (e.g., 'paystack', 'flutterwave', 'manual')",
     )
 
     # Transaction details
     amount: Mapped[float] = mapped_column(
-        Numeric(precision=18, scale=2), nullable=False, index=True,
-        comment="Transaction amount"
+        Numeric(precision=18, scale=2),
+        nullable=False,
+        index=True,
+        comment="Transaction amount",
     )
     currency: Mapped[str] = mapped_column(
-        String(3), nullable=False, default="NGN",
-        comment="Currency code (ISO 4217)"
+        String(3), nullable=False, default="NGN", comment="Currency code (ISO 4217)"
     )
     transaction_type: Mapped[Optional[str]] = mapped_column(
-        String(50), nullable=True,
-        comment="Type of transaction (e.g., 'credit', 'debit', 'transfer')"
+        String(50),
+        nullable=True,
+        comment="Type of transaction (e.g., 'credit', 'debit', 'transfer')",
     )
 
     # Transaction metadata
     account_ref: Mapped[Optional[str]] = mapped_column(
-        String(255), nullable=True, index=True,
-        comment="Account reference or identifier"
+        String(255),
+        nullable=True,
+        index=True,
+        comment="Account reference or identifier",
     )
     description: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True,
-        comment="Transaction description or narration"
+        Text, nullable=True, comment="Transaction description or narration"
     )
     reference: Mapped[Optional[str]] = mapped_column(
-        String(255), nullable=True, index=True,
-        comment="Transaction reference code"
+        String(255), nullable=True, index=True, comment="Transaction reference code"
     )
     customer_name: Mapped[Optional[str]] = mapped_column(
-        String(255), nullable=True,
-        comment="Customer or sender name"
+        String(255), nullable=True, comment="Customer or sender name"
     )
     customer_email: Mapped[Optional[str]] = mapped_column(
-        String(255), nullable=True,
-        comment="Customer email address"
+        String(255), nullable=True, comment="Customer email address"
     )
 
     # Timestamps
     transaction_timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True,
-        comment="When the transaction occurred"
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
+        comment="When the transaction occurred",
     )
     polled_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc),
-        comment="When this transaction was fetched by the poller"
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        comment="When this transaction was fetched by the poller",
     )
 
     # Status and verification
     status: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="pending", index=True,
-        comment="Transaction status (e.g., 'pending', 'verified', 'failed')"
+        String(50),
+        nullable=False,
+        default="pending",
+        index=True,
+        comment="Transaction status (e.g., 'pending', 'verified', 'failed')",
     )
     is_verified: Mapped[bool] = mapped_column(
-        default=False, nullable=False, index=True,
-        comment="Whether this transaction has been verified via email match"
+        default=False,
+        nullable=False,
+        index=True,
+        comment="Whether this transaction has been verified via email match",
     )
     verified_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True,
-        comment="When this transaction was verified"
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When this transaction was verified",
     )
 
     # Raw data (for debugging and reprocessing)
     raw_data: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True,
-        comment="JSON blob of raw API response"
+        Text, nullable=True, comment="JSON blob of raw API response"
     )
 
     # Audit fields
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
     # Indexes for common queries

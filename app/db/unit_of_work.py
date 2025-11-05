@@ -17,11 +17,11 @@ from app.db.repositories import (
 class UnitOfWork:
     """
     Unit of Work pattern implementation for managing database transactions.
-    
+
     This class provides a single entry point for all repository operations
     and ensures that all operations within a context share the same database
     session and transaction.
-    
+
     Usage:
         async with UnitOfWork() as uow:
             email = await uow.emails.get_by_id(1)
@@ -38,7 +38,7 @@ class UnitOfWork:
     def __init__(self, session: Optional[AsyncSession] = None):
         """
         Initialize Unit of Work.
-        
+
         Args:
             session: Optional existing session (useful for testing)
         """
@@ -94,7 +94,7 @@ class UnitOfWork:
     async def refresh(self, instance):
         """
         Refresh an instance from the database.
-        
+
         Args:
             instance: Model instance to refresh
         """

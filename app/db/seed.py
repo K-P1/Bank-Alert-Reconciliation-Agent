@@ -2,8 +2,8 @@
 
 import asyncio
 from app.db.unit_of_work import UnitOfWork
-from tests.fixtures.sample_emails import SAMPLE_EMAILS
-from tests.fixtures.sample_transactions import SAMPLE_TRANSACTIONS
+from tests.fixtures.sample_emails import SAMPLE_EMAILS  # type: ignore[import-not-found, attr-defined]
+from tests.fixtures.sample_transactions import SAMPLE_TRANSACTIONS  # type: ignore[import-not-found, attr-defined]
 
 
 async def seed_database():
@@ -16,7 +16,7 @@ async def seed_database():
         transaction_count = await uow.transactions.count()
 
         if email_count > 0 or transaction_count > 0:
-            print(f"Database already contains data:")
+            print("Database already contains data:")
             print(f"  - {email_count} emails")
             print(f"  - {transaction_count} transactions")
             response = input("Do you want to continue and add more data? (y/n): ")
@@ -51,9 +51,7 @@ async def seed_database():
                     txn_data["transaction_id"]
                 )
                 if existing:
-                    print(
-                        f"  - Skipping {txn_data['transaction_id']} (already exists)"
-                    )
+                    print(f"  - Skipping {txn_data['transaction_id']} (already exists)")
                     continue
 
                 transaction = await uow.transactions.create(**txn_data)
@@ -119,7 +117,7 @@ async def seed_database():
         transaction_count = await uow.transactions.count()
         config_count = await uow.config.count()
 
-        print(f"\nDatabase summary:")
+        print("\nDatabase summary:")
         print(f"  - Total emails: {email_count}")
         print(f"  - Total transactions: {transaction_count}")
         print(f"  - Total configs: {config_count}")

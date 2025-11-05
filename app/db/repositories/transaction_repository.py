@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_
 
 from app.db.models.transaction import Transaction
 from app.db.repository import BaseRepository
@@ -18,16 +18,16 @@ class TransactionRepository(BaseRepository[Transaction]):
     async def get_unverified(self, limit: Optional[int] = None) -> List[Transaction]:
         """
         Get unverified transactions.
-        
+
         Args:
             limit: Maximum number of transactions to return
-            
+
         Returns:
             List of unverified transactions
         """
         query = (
             select(self.model)
-            .where(self.model.is_verified == False)
+            .where(self.model.is_verified.is_(False))
             .order_by(self.model.transaction_timestamp.desc())
         )
         if limit:
@@ -41,12 +41,12 @@ class TransactionRepository(BaseRepository[Transaction]):
     ) -> List[Transaction]:
         """
         Get transactions by amount within a time range.
-        
+
         Args:
             amount: Transaction amount
             start_time: Start of time window
             end_time: End of time window
-            
+
         Returns:
             List of matching transactions
         """
@@ -63,17 +63,19 @@ class TransactionRepository(BaseRepository[Transaction]):
     async def get_recent(self, hours: int = 48) -> List[Transaction]:
         """
         Get recent transactions within the specified hours.
-        
+
         Args:
             hours: Number of hours back to look
-            
+
         Returns:
             List of recent transactions
         """
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-        query = select(self.model).where(
-            self.model.transaction_timestamp >= cutoff
-        ).order_by(self.model.transaction_timestamp.desc())
+        query = (
+            select(self.model)
+            .where(self.model.transaction_timestamp >= cutoff)
+            .order_by(self.model.transaction_timestamp.desc())
+        )
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
@@ -82,11 +84,11 @@ class TransactionRepository(BaseRepository[Transaction]):
     ) -> Optional[Transaction]:
         """
         Mark a transaction as verified.
-        
+
         Args:
             transaction_id: Transaction ID
             verified_at: Verification timestamp (defaults to now)
-            
+
         Returns:
             Updated transaction instance
         """
@@ -99,16 +101,14 @@ class TransactionRepository(BaseRepository[Transaction]):
     async def get_by_reference(self, reference: str) -> List[Transaction]:
         """
         Get transactions by reference code.
-        
+
         Args:
             reference: Transaction reference
-            
+
         Returns:
             List of matching transactions
         """
-        query = select(self.model).where(
-            self.model.reference.ilike(f"%{reference}%")
-        )
+        query = select(self.model).where(self.model.reference.ilike(f"%{reference}%"))
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
@@ -117,11 +117,11 @@ class TransactionRepository(BaseRepository[Transaction]):
     ) -> List[Transaction]:
         """
         Get transactions by external source.
-        
+
         Args:
             source: External source name
             limit: Maximum number to return
-            
+
         Returns:
             List of transactions from that source
         """

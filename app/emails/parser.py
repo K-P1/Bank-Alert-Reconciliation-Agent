@@ -58,7 +58,7 @@ class HybridParser:
         Returns:
             ParsedEmail or None if filtered out
         """
-        parsing_errors = []
+        parsing_errors: list[str] = []
 
         # Step 1: Pre-filtering
         filter_result = self.filter.filter_email(email)
@@ -77,7 +77,9 @@ class HybridParser:
 
         if self.llm_client:
             try:
-                classification_result = await self.llm_client.classify_email(email.subject, body)
+                classification_result = await self.llm_client.classify_email(
+                    email.subject, body
+                )
                 is_alert = classification_result.is_alert
                 classification_confidence = classification_result.confidence
 
@@ -103,13 +105,17 @@ class HybridParser:
                 parsing_errors.append(f"LLM classification error: {str(e)}")
 
         # Step 3: Extraction (LLM first, then regex fallback)
-        extraction_result = None
+        from app.emails.models import LLMExtractionResult, RegexExtractionResult
+
+        extraction_result: LLMExtractionResult | RegexExtractionResult | None = None
         parsing_method = "regex"
 
         # Try LLM extraction first
         if self.llm_client and is_alert:
             try:
-                extraction_result = await self.llm_client.extract_fields(email.subject, body)
+                extraction_result = await self.llm_client.extract_fields(
+                    email.subject, body
+                )
 
                 if extraction_result.fields_extracted >= 2:  # At least 2 fields
                     parsing_method = "llm"
@@ -129,7 +135,9 @@ class HybridParser:
         # Fallback to regex if needed
         if extraction_result is None and self.config.parser.fallback_to_regex:
             try:
-                extraction_result = self.regex_extractor.extract_fields(email.subject, body)
+                extraction_result = self.regex_extractor.extract_fields(
+                    email.subject, body
+                )
                 parsing_method = "regex" if parsing_method == "regex" else "hybrid"
 
                 logger.info(
@@ -147,28 +155,38 @@ class HybridParser:
             if self.config.parser.require_amount and extraction_result.amount is None:
                 parsing_errors.append("Required field 'amount' not extracted")
 
-            if self.config.parser.require_timestamp and extraction_result.timestamp is None:
+            if (
+                self.config.parser.require_timestamp
+                and extraction_result.timestamp is None
+            ):
                 parsing_errors.append("Required field 'timestamp' not extracted")
 
         # Calculate final confidence
         if extraction_result:
             if parsing_method == "llm":
                 final_confidence = (
-                    extraction_result.confidence * self.config.parser.llm_confidence_weight
-                    + classification_confidence * (1 - self.config.parser.llm_confidence_weight)
+                    extraction_result.confidence
+                    * self.config.parser.llm_confidence_weight
+                    + classification_confidence
+                    * (1 - self.config.parser.llm_confidence_weight)
                 )
             elif parsing_method == "regex":
-                final_confidence = extraction_result.confidence * self.config.parser.regex_confidence_weight
+                final_confidence = (
+                    extraction_result.confidence
+                    * self.config.parser.regex_confidence_weight
+                )
             else:  # hybrid
                 final_confidence = (
-                    extraction_result.confidence * 0.6
-                    + classification_confidence * 0.4
+                    extraction_result.confidence * 0.6 + classification_confidence * 0.4
                 )
         else:
             final_confidence = classification_confidence * 0.3
 
         # Log low confidence cases
-        if self.config.parser.log_low_confidence and final_confidence < self.config.parser.min_confidence_threshold:
+        if (
+            self.config.parser.log_low_confidence
+            and final_confidence < self.config.parser.min_confidence_threshold
+        ):
             logger.warning(
                 f"Low confidence parse: {email.message_id}, "
                 f"confidence={final_confidence:.2f}, "
@@ -218,7 +236,7 @@ class HybridParser:
             valid_method = parsing_method  # type: ignore
         else:
             valid_method = "regex"  # Default fallback
-        
+
         parsed_email = ParsedEmail(
             message_id=email.message_id,
             sender=email.sender,

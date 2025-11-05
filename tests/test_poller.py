@@ -8,12 +8,10 @@ metrics collection, and end-to-end polling scenarios.
 import pytest
 import asyncio
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, Mock, patch
 
 from app.transactions.poller import TransactionPoller
 from app.transactions.config import PollerConfig, RetryConfig, CircuitBreakerConfig
 from app.transactions.clients.base import (
-    BaseTransactionClient,
     RawTransaction,
     APIConnectionError,
 )
@@ -259,9 +257,7 @@ class TestPollerDeduplication:
 
     async def test_idempotency(self, db_session):
         """Test that re-running polls doesn't create duplicates."""
-        config = PollerConfig(
-            poll_interval_minutes=15, lookback_hours=2, batch_size=10
-        )
+        config = PollerConfig(poll_interval_minutes=15, lookback_hours=2, batch_size=10)
 
         client = MockTransactionClient(latency_ms=0)
         poller = TransactionPoller(client=client, config=config, session=db_session)
@@ -274,13 +270,19 @@ class TestPollerDeduplication:
 
         # Verify no duplicates were stored across runs
         # (All transactions from run 2+ should be marked as duplicates)
-        total_new = sum(r["transactions_new"] for r in results)
-        total_dup = sum(r["transactions_duplicate"] for r in results)
+        sum(r["transactions_new"] for r in results)
+        sum(r["transactions_duplicate"] for r in results)
 
         # First run creates new, subsequent runs find duplicates
         assert results[0]["transactions_new"] >= 0
-        assert results[1]["transactions_duplicate"] >= 0 or results[1]["transactions_new"] == 0
-        assert results[2]["transactions_duplicate"] >= 0 or results[2]["transactions_new"] == 0
+        assert (
+            results[1]["transactions_duplicate"] >= 0
+            or results[1]["transactions_new"] == 0
+        )
+        assert (
+            results[2]["transactions_duplicate"] >= 0
+            or results[2]["transactions_new"] == 0
+        )
 
 
 @pytest.mark.asyncio
@@ -293,7 +295,7 @@ class TestPollerMetrics:
         client = MockTransactionClient(latency_ms=0)
         poller = TransactionPoller(client=client, config=config, session=db_session)
 
-        result = await poller.poll_once()
+        await poller.poll_once()
 
         # Check metrics were recorded
         last_run = poller.metrics.get_last_run()
@@ -308,7 +310,7 @@ class TestPollerMetrics:
         client = MockTransactionClient(failure_rate=1.0, latency_ms=0)
         poller = TransactionPoller(client=client, config=config, session=db_session)
 
-        result = await poller.poll_once()
+        await poller.poll_once()
 
         # Check failure was recorded
         last_run = poller.metrics.get_last_run()
@@ -421,7 +423,7 @@ class TestPollerErrorHandling:
     async def test_api_timeout_handling(self, db_session):
         """Test handling of API errors."""
         from app.transactions.clients.base import APIError
-        
+
         config = PollerConfig(
             poll_interval_minutes=15,
             api_timeout=0.1,
@@ -447,9 +449,7 @@ class TestPollerIntegration:
 
     async def test_full_poll_cycle(self, db_session):
         """Test complete polling cycle from fetch to storage."""
-        config = PollerConfig(
-            poll_interval_minutes=15, lookback_hours=2, batch_size=20
-        )
+        config = PollerConfig(poll_interval_minutes=15, lookback_hours=2, batch_size=20)
 
         client = MockTransactionClient(latency_ms=10)
         poller = TransactionPoller(client=client, config=config, session=db_session)

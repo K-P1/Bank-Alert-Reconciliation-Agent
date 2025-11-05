@@ -118,7 +118,9 @@ class ParserMetrics:
             else:
                 self._current_run["classified_as_non_alert"] += 1
 
-    def record_parsed(self, parsing_method: str, confidence: float, fields: dict) -> None:
+    def record_parsed(
+        self, parsing_method: str, confidence: float, fields: dict
+    ) -> None:
         """Record email parsed.
 
         Args:
@@ -163,7 +165,11 @@ class ParserMetrics:
             self._current_run["emails_failed"] += 1
             self._current_run["errors"].append(error)
 
-    def end_run(self, status: Literal["SUCCESS", "PARTIAL", "FAILED"], error_message: str | None = None) -> None:
+    def end_run(
+        self,
+        status: Literal["SUCCESS", "PARTIAL", "FAILED"],
+        error_message: str | None = None,
+    ) -> None:
         """End current run and save metrics.
 
         Args:
@@ -272,21 +278,33 @@ class ParserMetrics:
             if run.avg_confidence > 0:
                 all_confidences.append(run.avg_confidence)
 
-        avg_confidence = sum(all_confidences) / len(all_confidences) if all_confidences else 0.0
+        avg_confidence = (
+            sum(all_confidences) / len(all_confidences) if all_confidences else 0.0
+        )
 
         # Field extraction rates
         total_emails_parsed = total_parsed if total_parsed > 0 else 1
-        amount_extraction_rate = sum(r.amount_extracted_count for r in self.runs) / total_emails_parsed
-        currency_extraction_rate = sum(r.currency_extracted_count for r in self.runs) / total_emails_parsed
-        reference_extraction_rate = sum(r.reference_extracted_count for r in self.runs) / total_emails_parsed
-        timestamp_extraction_rate = sum(r.timestamp_extracted_count for r in self.runs) / total_emails_parsed
+        amount_extraction_rate = (
+            sum(r.amount_extracted_count for r in self.runs) / total_emails_parsed
+        )
+        currency_extraction_rate = (
+            sum(r.currency_extracted_count for r in self.runs) / total_emails_parsed
+        )
+        reference_extraction_rate = (
+            sum(r.reference_extracted_count for r in self.runs) / total_emails_parsed
+        )
+        timestamp_extraction_rate = (
+            sum(r.timestamp_extracted_count for r in self.runs) / total_emails_parsed
+        )
 
         return {
             "total_runs": total_runs,
             "successful_runs": successful_runs,
             "partial_runs": partial_runs,
             "failed_runs": failed_runs,
-            "success_rate": (successful_runs / total_runs * 100) if total_runs > 0 else 0.0,
+            "success_rate": (
+                (successful_runs / total_runs * 100) if total_runs > 0 else 0.0
+            ),
             "total_emails_fetched": total_fetched,
             "total_emails_parsed": total_parsed,
             "total_emails_stored": total_stored,

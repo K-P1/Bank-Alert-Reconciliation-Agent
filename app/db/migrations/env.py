@@ -15,7 +15,6 @@ sys.path.insert(0, str(Path(__file__).parents[3]))
 # Import config and models
 from app.core.config import get_settings
 from app.db.base import Base
-from app.db.models import Email, Transaction, Match, Log, Config
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -23,7 +22,9 @@ config = context.config
 
 # Override sqlalchemy.url with DATABASE_URL from settings
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL or "sqlite+aiosqlite:///./bankagent.db")
+config.set_main_option(
+    "sqlalchemy.url", settings.DATABASE_URL or "sqlite+aiosqlite:///./bankagent.db"
+)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
