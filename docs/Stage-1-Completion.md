@@ -155,35 +155,6 @@ Files:
 }
 ```
 
-## how to run
-
-- Local (Windows PowerShell):
-
-```powershell
-./run_server.bat
-```
-
-- Docker:
-
-```powershell
-# Build
-docker build -f docker/Dockerfile -t bank-agent .
-
-# Run
-docker run -p 8000:8000 bank-agent
-```
-
-- Health checks:
-  - http://127.0.0.1:8000/
-  - http://127.0.0.1:8000/healthz
-- A2A endpoint:
-  - http://127.0.0.1:8000/a2a/agent/bankMatcher
-
-## configuration and secrets
-
-- Copy `.env.example` to `.env` and adjust values as needed
-- See `docs/CONFIG.md` for variable descriptions and secret handling guidance
-- Important: Do not commit real secrets; rely on environment variables in production
 
 ## files added/updated
 
@@ -199,29 +170,3 @@ docker run -p 8000:8000 bank-agent
 - Updated:
   - `app/main.py`
   - `README.md`
-
-## validation and results
-
-- Local tests:
-  - PASS — 3 tests passed (`tests/test_health.py`, `tests/test_a2a_jsonrpc.py`)
-- Lint/Format/Types:
-  - CI workflow configured (ruff, black, mypy) — expected to pass on PR
-  - Local run depends on dev tools installation; CI ensures enforcement
-- Build/Run:
-  - PASS — App starts via `uvicorn app.main:app` and via Docker image
-
-## assumptions and notes
-
-- Stage 1 intentionally does not implement business logic beyond `status` — other methods return `-32601` (not implemented)
-- `A2A_AGENT_NAME` defaults to `bankMatcher` and can be overridden via `.env`
-- Logs are JSON-structured and include `x-request-id` for each request
-
-## next steps (preview of Stage 2+)
-
-- Stage 2: Define storage models and migrations (emails, transactions, matches, logs)
-- Stage 3–4: Implement transaction poller and email fetcher/parser
-- Later stages: Matching engine, reconciliation workflow, expanded A2A behavior
-
----
-
-Completion criteria for Stage 1 have been met: endpoints respond with well-formed JSON-RPC for `status` and proper errors for unimplemented methods; health checks, logging, configuration, and run/deploy paths are in place; basic tests pass and CI is configured.

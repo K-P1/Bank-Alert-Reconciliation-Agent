@@ -428,49 +428,7 @@ normalized_tx = normalize_transaction(
 
 ---
 
-## Next Steps (Stage 6)
 
-With normalization complete, the next stage will implement the **Matching Engine**:
-
-1. Design matching strategy (exact, heuristic, fuzzy rules)
-2. Implement candidate retrieval from database
-3. Build scoring model combining multiple signals
-4. Implement time-window logic
-5. Add confidence thresholding
-6. Handle multiple candidates and tie-breaking
-
-The normalized data structures and composite keys created in this stage will be used directly by the matching engine.
-
----
-
-## Deliverables ✅
-
-- [x] Normalization module (`app/normalization/`)
-- [x] Amount and currency normalizers
-- [x] Timestamp normalizer
-- [x] Reference string cleaner
-- [x] Bank enrichment system (16 Nigerian banks)
-- [x] Composite key generation
-- [x] Normalized data models
-- [x] `normalize_email()` function
-- [x] `normalize_transaction()` function
-- [x] 37 passing tests
-- [x] Documentation
-
----
-
-## Validation / Checkpoint ✅
-
-- [x] Normalization test suite passes (37/37 tests)
-- [x] Amounts, dates, references normalized consistently
-- [x] Currency symbols and codes converted to ISO format
-- [x] Bank enrichment identifies banks from 16 institutions
-- [x] Composite keys generated for all complete records
-- [x] Quality scores calculated accurately
-- [x] Edge cases handled gracefully (None returns, logging)
-- [x] No breaking changes to existing code
-
----
 
 ## Performance Notes
 
@@ -509,6 +467,3 @@ The normalized data structures and composite keys created in this stage will be 
 
 ---
 
-## Stage 5 Complete! 🎉
-
-The normalization and enrichment system is production-ready and provides a solid foundation for the matching engine implementation in Stage 6.
