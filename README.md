@@ -1,68 +1,339 @@
-# Bank Alert Reconciliation Agent
+# Bank Alert Reconciliation Agent (BARA)
 
-Telex-compatible A2A agent that reconciles bank alert emails with internal transactions.
+A production‑oriented service that ingests bank alert emails, normalizes and enriches them, polls external transaction sources, and reconciles matches automatically via a configurable matching engine. It exposes a Telex‑compatible JSON‑RPC A2A endpoint and REST endpoints for worker management.
 
-## 🎯 Project Status: Stage 4 Complete (40% Complete)
+Status: Work‑in‑progress (Stages 1–6 complete, further stages planned). This README will evolve as new stages land.
 
-**Latest:** Stage 4 - Email Fetcher and Intelligent Parser ✅
+## Table of contents
 
-### Completed Stages
+- Overview and goals
+- Architecture at a glance
+- What’s implemented so far (by stage)
+- Project layout and folder guide
+- Getting started (uv) — Windows PowerShell
+- Configuration
+- Database, migrations, and seed data
+- Running the app
+- Background workers (poller, email fetcher)
+- Testing, linting, and formatting
+- Docker
+- Bank mappings maintenance
+- Roadmap and next steps
+- License
 
-✅ **Stage 1:** A2A API Skeleton & Infrastructure  
-✅ **Stage 2:** Storage Models & Persistence Layer  
-✅ **Stage 3:** Transaction Poller  
-✅ **Stage 4:** Email Fetcher & Intelligent Parser
+## Overview and goals
 
-### Current Capabilities
+The Bank Alert Reconciliation Agent ingests transactional signals (bank alert emails and API‑polled transactions), transforms them into a canonical form, and reconciles them using an extensible rule‑based matching engine. Primary goals:
 
-- **A2A JSON-RPC API** for Telex integration
-- **Transaction Polling** from external APIs (15-minute intervals)
-- **Email Fetching** from IMAP mailboxes with intelligent parsing
-- **Hybrid Parsing:** Rule-based filters + LLM classification + Regex extraction
-- **Database Storage** for emails, transactions, matches, and logs
-- **Comprehensive Metrics** and observability
-- **FastAPI Endpoints** for management and monitoring
+- High‑quality normalization and enrichment tailored to the Nigerian banking ecosystem
+- Efficient reconciliation with transparent scoring and metrics
+- Operational readiness (logging, health checks, metrics, CI hooks)
+- Clear extension points for new sources, rules, and data models
 
-### Key Features
+## Architecture at a glance
 
-**Email Processing:**
+- Ingestion
+  - IMAP email fetcher → hybrid parser (rules + LLM + regex fallback)
+  - Transaction poller → external API clients (mock in dev)
+- Normalization & enrichment
+  - Amount, currency, timestamp, reference tokenization
+  - Bank enrichment using centralized mappings
+- Matching engine
+  - Candidate retrieval + 7 weighted rules + tie‑breaking
+- Interfaces
+  - JSON‑RPC A2A endpoint (Telex‑compatible)
+  - REST endpoints for worker control and metrics
+- Storage
+  - Async SQLAlchemy, repositories, unit‑of‑work, Alembic migrations
+- Ops
+  - Structured logging, health endpoints, configurable via env
 
-- Fetches emails from IMAP (SSL/TLS secure)
-- Rule-based pre-filtering (sender whitelist, keyword matching)
-- LLM-assisted classification and extraction (Groq API, Llama 3.1)
-- Regex-based fallback for offline/cost-free operation
-- 96% classification accuracy, 85% field extraction accuracy
-- Confidence scoring for all parsed data
+See docs/Overview.md and docs/architecture.md for deeper design notes.
 
-**Transaction Management:**
+## What’s implemented so far (by stage)
 
-- Polls external APIs every 15 minutes
-- Deduplication and retry logic
-- Circuit breaker for API failures
-- Comprehensive metrics tracking
+- Stage 1 — A2A API & infrastructure
+  - JSON‑RPC 2.0 endpoint (status implemented; others return Not Implemented)
+  - Health endpoints, structured logging, configuration loader
+- Stage 2 — Storage models & persistence layer
+  - 5 models (email, transaction, match, log, config), repositories, UoW
+  - Alembic migrations and data retention utilities
+- Stage 3 — Transaction poller
+  - 15‑minute cadence (configurable), retries, circuit breaker, metrics
+  - Mock API client with realistic Nigerian data
+- Stage 4 — Email fetcher & intelligent parser
+  - IMAP connector, rule‑based filter, LLM assist (Groq), regex fallback
+  - Background fetcher with deduplication and metrics
+- Stage 5 — Normalization & enrichment
+  - Amount, currency, timestamp, reference normalization
+  - Bank enrichment via centralized mappings
+- Stage 6 — Matching engine
+  - 7 weighted rules, fuzzy matching (rapidfuzz), composite keys, thresholds
 
-**API Endpoints:**
+Refer to docs/Stage-1-Completion.md … docs/Stage-6-Completion.md for details.
 
-- Health checks: `GET /` and `GET /healthz`
-- A2A JSON-RPC: `POST /a2a/agent/bankMatcher`
-- Email management: `POST /emails/fetch`, `GET /emails/status`
-- Transaction poller: `GET /transactions/status`, `POST /transactions/poll`
-
-## Run locally
-
-1. Copy `.env.example` to `.env` and adjust values if needed.
-2. Install dependencies and run the server:
-
-On Windows (PowerShell):
+## Project layout and folder guide
 
 ```
-./run_server.bat
+.
+├─ app/
+│  ├─ a2a/                # JSON‑RPC A2A endpoint
+│  │  └─ router.py
+│  ├─ core/               # Cross‑cutting infrastructure
+│  │  ├─ config.py        # Pydantic settings loader
+│  │  └─ logging.py       # structlog configuration & middleware
+│  ├─ db/                 # Persistence layer
+│  │  ├─ base.py          # Async SQLAlchemy engine/session
+│  │  ├─ init.py          # DB init/reset CLI
+│  │  ├─ repository.py    # Base repository
+│  │  ├─ unit_of_work.py  # Transaction/UoW
+│  │  ├─ retention.py     # Cleanup and retention policies
+│  │  ├─ seed.py          # Dev seed script
+│  │  ├─ models/          # ORM models (email, transaction, match, log, config)
+│  │  ├─ repositories/    # Specialized repositories
+│  │  └─ migrations/      # Alembic env & versions
+│  ├─ emails/             # Email ingestion & parsing
+│  │  ├─ imap_connector.py
+│  │  ├─ filter.py
+│  │  ├─ llm_client.py
+│  │  ├─ regex_extractor.py
+│  │  ├─ parser.py
+│  │  ├─ fetcher.py
+│  │  ├─ metrics.py
+│  │  └─ router.py        # REST endpoints
+│  ├─ normalization/      # Canonicalization & enrichment
+│  │  ├─ models.py
+│  │  ├─ banks.py         # Central Nigerian bank/fintech mappings (aliases/domains)
+│  │  └─ normalizer.py
+│  ├─ matching/           # Matching engine
+│  │  ├─ config.py
+│  │  ├─ models.py
+│  │  ├─ fuzzy.py
+│  │  ├─ retrieval.py
+│  │  ├─ rules.py
+│  │  ├─ scorer.py
+│  │  └─ engine.py
+│  └─ transactions/       # Poller & API clients
+│     ├─ clients/
+│     │  ├─ base.py
+│     │  └─ mock_client.py
+│     ├─ config.py
+│     ├─ metrics.py
+│     ├─ poller.py
+│     └─ router.py        # REST endpoints
+├─ docker/
+│  └─ Dockerfile          # Slim Python 3.13 image
+├─ docs/                  # Architecture, stages, and roadmap
+├─ tests/                 # Unit tests and fixtures
+├─ main.py                # Entrypoint (delegates to app/main.py)
+├─ app/main.py            # FastAPI app assembly & health
+├─ pyproject.toml         # Project & dependency metadata
+├─ run_server.bat         # Windows helper to start dev server
+├─ run_checks.bat         # Windows helper for lint/test (if configured)
+└─ alembic.ini            # Alembic config
+```
+
+Highlights:
+
+- Centralized bank mappings live in `app/normalization/banks.py` (aliases + domains + categories).
+- Tests and documentation accompany each stage.
+
+## Getting started (uv) — Windows PowerShell
+
+Prerequisites:
+
+- Python 3.13+
+- uv (package/dependency manager): https://docs.astral.sh/uv/
+- A running database (PostgreSQL recommended for dev/prod; SQLite used in tests)
+
+Install uv (if needed):
+
+```powershell
+# Scoop
+scoop install uv
+# or, pipx
+pipx install uv
+```
+
+Create a virtual environment and install dependencies:
+
+```powershell
+uv venv
+uv sync
+```
+
+Set up environment variables:
+
+```powershell
+# Copy and edit as needed (if .env.example is present)
+Copy-Item .env.example .env
+# Then open .env and fill values (see Configuration section below)
 ```
 
 ## Configuration
 
-See `docs/CONFIG.md` for environment variables and secret handling guidance.
+Configuration is managed by Pydantic Settings (`app/core/config.py`) and environment variables. Key variables (expand as needed):
 
-## CI
+- Core:
+  - `ENV` (development|staging|production)
+  - `DEBUG` (true|false)
+  - `A2A_AGENT_NAME` (e.g., bankMatcher)
+- Database:
+  - `DATABASE_URL` (e.g., postgresql+asyncpg://user:pass@host:5432/db)
+  - `TEST_DATABASE_URL` (e.g., sqlite+aiosqlite:///./test_bara_db.sqlite3)
+- Email / IMAP:
+  - `IMAP_HOST`, `IMAP_USER`, `IMAP_PASS`
+  - Optional behavior: poll intervals, batch sizes (see `app/emails/config.py`)
+- LLM (optional):
+  - `LLM_PROVIDER` (e.g., groq)
+  - `GROQ_API_KEY`, `GROQ_MODEL`
+- Transactions Poller (see `app/transactions/config.py`):
+  - Poll interval, batch size, retries, circuit breaker thresholds
 
-GitHub Actions workflow runs lint (ruff/black), type-check (mypy), and tests (pytest) on pushes and PRs to `main` and `dev`.
+Defaults exist for many options; missing secrets should be provided via `.env`.
+
+## Database, migrations, and seed data
+
+Initialize and migrate the database:
+
+```powershell
+# Show current version
+uv run alembic current
+# Upgrade to latest
+uv run alembic upgrade head
+# Create a new migration (after model changes)
+uv run alembic revision --autogenerate -m "your message"
+```
+
+Optional: seed sample data for development:
+
+```powershell
+uv run python -m app.db.seed
+```
+
+Reset (dangerous in production):
+
+```powershell
+uv run python -m app.db.init reset
+```
+
+## Running the app
+
+Start the FastAPI server (dev hot‑reload):
+
+```powershell
+# Helper script
+./run_server.bat
+
+# Or directly with uvicorn
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Health checks:
+
+- GET `/` → `{ "status": "ok" }`
+- GET `/healthz` → `{ "status": "ok", "env": "development|staging|production" }`
+
+A2A JSON‑RPC (Telex‑compatible):
+
+- POST `/a2a/agent/{agent_name}`
+- POST `/a2a/agent/bankMatcher`
+
+Example request:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "req-001",
+  "method": "status",
+  "params": {}
+}
+```
+
+## Background workers (poller, email fetcher)
+
+Transactions poller endpoints (`app/transactions/router.py`):
+
+- GET `/transactions/poller/status`
+- POST `/transactions/poller/start`
+- POST `/transactions/poller/stop`
+- POST `/transactions/poller/poll` (manual one‑off)
+
+Email fetcher endpoints (`app/emails/router.py`):
+
+- GET `/emails/fetcher/status`
+- POST `/emails/fetcher/start`
+- POST `/emails/fetcher/stop`
+- POST `/emails/fetcher/fetch` (manual one‑off)
+
+Both services collect in‑memory run metrics accessible via their status endpoints. Auto‑start can be configured via their respective configs.
+
+## Testing, linting, and formatting
+
+Run unit tests:
+
+```powershell
+uv run pytest -q
+```
+
+Formatting and linting (tools are declared in `pyproject.toml` dev group):
+
+```powershell
+# Format with Black
+uv run black .
+# Import sorting with isort
+uv run isort .
+# Lint with Flake8
+uv run flake8 .
+```
+
+Optional type checking (mypy config present; install if desired):
+
+```powershell
+uv add --group dev mypy
+uv run mypy .
+```
+
+## Docker
+
+Build and run a container image:
+
+```powershell
+# Build
+docker build -t bara:dev -f docker/Dockerfile .
+# Run
+docker run --rm -p 8000:8000 --env-file .env bara:dev
+```
+
+## Bank mappings maintenance
+
+Bank/fintech/microfinance alias and domain mappings are centralized in:
+
+- `app/normalization/banks.py` (export: `BANK_MAPPINGS`)
+
+Guidelines:
+
+- Use lowercase alias keys without punctuation (e.g., `gtb`, `gtbank`, `kuda`)
+- Provide a concise `code`, canonical `name`, and known `domains`
+- Tag `category` (commercial | non_interest | fintech | microfinance)
+- Add common aliases and verified email/web domains
+
+## Roadmap and next steps
+
+This project is being implemented in stages. Completed: 1–6. Coming up:
+
+- Stage 7+: Review UI hooks / dashboards (optional)
+- Rule tuning and adaptive thresholds
+- Additional sources (webhooks, MMS/USSD, etc.)
+- Prometheus metrics export and alerts
+- Broader bank and wallet coverage as needed
+
+See docs/Roadmap.md for the high‑level plan and per‑stage docs for details.
+
+## License
+
+See `LICENSE` for licensing information.
+
+---
+
+Maintainers: contributions are welcome. Please open an issue to propose changes, or submit a PR following the coding conventions, with tests and documentation where appropriate.

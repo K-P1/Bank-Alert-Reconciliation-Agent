@@ -428,8 +428,6 @@ normalized_tx = normalize_transaction(
 
 ---
 
-
-
 ## Performance Notes
 
 - Normalization is **synchronous** (no async overhead needed)
@@ -444,8 +442,8 @@ normalized_tx = normalize_transaction(
 
 1. **Bank Mapping**
 
-   - Currently 16 Nigerian banks
-   - Can be extended by adding to `BANK_MAPPINGS`
+   - Centralized in `app/normalization/banks.py` as `BANK_MAPPINGS`
+   - Extended beyond the original 16 to include additional commercial, non-interest, and popular fintech/microfinance banks
    - No fuzzy matching for bank names (exact substring match)
 
 2. **Date Formats**
@@ -466,4 +464,3 @@ normalized_tx = normalize_transaction(
    - Can be adjusted via threshold
 
 ---
-
