@@ -17,6 +17,128 @@ from app.db.repositories.match_repository import MatchRepository
 from app.db.models.email import Email
 from app.db.models.match import Match
 from app.matching.models import MatchResult, BatchMatchResult
+from app.a2a.command_interpreter import get_interpreter
+from app.a2a.command_handlers import (
+    CommandHandlers,
+    extract_limit,
+    extract_days,
+    extract_rematch_flag,
+)
+
+
+logger = structlog.get_logger("a2a")
+router = APIRouter()
+
+
+# Initialize command interpreter on module load
+def _init_command_interpreter() -> None:
+    """Initialize the command interpreter with all supported commands."""
+    interpreter = get_interpreter()
+
+    # Register: reconcile_now
+    interpreter.register_command(
+        name="reconcile_now",
+        patterns=[
+            r"\breconcile\b",
+            r"\brun\s+(the\s+)?reconciliation\b",
+            r"\bmatch\s+(emails?|alerts?)\b",
+            r"\bstart\s+matching\b",
+            r"\bprocess\s+(emails?|alerts?)\b",
+        ],
+        handler=None,  # Will be set at runtime with db session
+        description="Run reconciliation immediately to match bank alerts with transactions",
+        examples=[
+            "run reconciliation",
+            "reconcile now",
+            "match 50 emails",
+            "process alerts",
+        ],
+        param_extractors={"limit": extract_limit, "rematch": extract_rematch_flag},
+    )
+
+    # Register: show_summary
+    interpreter.register_command(
+        name="show_summary",
+        patterns=[
+            r"\bshow\s+(me\s+)?(the\s+)?summary\b",
+            r"\b(get|give)\s+(me\s+)?(the\s+)?status\b",
+            r"\bwhat.?s\s+the\s+status\b",
+            r"\boverview\b",
+            r"\bdashboard\b",
+        ],
+        handler=None,
+        description="Display summary of matched and unmatched emails",
+        examples=[
+            "show summary",
+            "give me the status",
+            "what's the status",
+            "show me the overview",
+        ],
+        param_extractors={"days": extract_days},
+    )
+
+    # Register: list_unmatched
+    interpreter.register_command(
+        name="list_unmatched",
+        patterns=[
+            r"\blist\s+unmatched\b",
+            r"\bshow\s+(me\s+)?(the\s+)?unmatched\b",
+            r"\bpending\s+(emails?|alerts?)\b",
+            r"\bwhat.?s\s+unmatched\b",
+            r"\bunpaired\b",
+        ],
+        handler=None,
+        description="List all unmatched email alerts",
+        examples=[
+            "list unmatched",
+            "show unmatched emails",
+            "pending alerts",
+            "what's unmatched",
+        ],
+        param_extractors={"limit": extract_limit},
+    )
+
+    # Register: get_confidence_report
+    interpreter.register_command(
+        name="get_confidence_report",
+        patterns=[
+            r"\bconfidence\s+report\b",
+            r"\baccuracy\s+(report|stats?)\b",
+            r"\bshow\s+(me\s+)?(the\s+)?metrics\b",
+            r"\bhow\s+(accurate|well)\b",
+            r"\bperformance\s+report\b",
+        ],
+        handler=None,
+        description="Generate confidence and accuracy report for recent matches",
+        examples=[
+            "get confidence report",
+            "show accuracy stats",
+            "how accurate are we",
+            "performance report",
+        ],
+        param_extractors={"days": extract_days},
+    )
+
+    # Register: help
+    interpreter.register_command(
+        name="help",
+        patterns=[
+            r"\bhelp\b",
+            r"\bcommands?\b",
+            r"\bwhat\s+can\s+you\s+do\b",
+            r"\binstructions?\b",
+            r"\bhow\s+to\s+use\b",
+        ],
+        handler=None,
+        description="Show list of available commands",
+        examples=["help", "show commands", "what can you do"],
+    )
+
+    logger.info("command_interpreter.initialized", command_count=len(interpreter.commands))
+
+
+# Initialize on module load
+_init_command_interpreter()
 
 
 logger = structlog.get_logger("a2a")
@@ -36,11 +158,39 @@ class JSONRPCRequest(BaseModel):
     params: Optional[Dict[str, Any]] = None
 
 
-class JSONRPCResult(BaseModel):
-    status: str = "success"
-    summary: Optional[str] = None
-    artifacts: Optional[list[Dict[str, Any]]] = None
-    meta: Optional[Dict[str, Any]] = None
+# Telex A2A Protocol Models
+class MessagePart(BaseModel):
+    """A part of a message (text, data, artifact, etc.)"""
+    kind: str  # "text", "data", "artifact", etc.
+    text: Optional[str] = None
+    data: Optional[Any] = None
+    mimeType: Optional[str] = None
+
+
+class Message(BaseModel):
+    """A message response conforming to Telex A2A protocol"""
+    kind: str = "message"
+    role: str = "agent"  # Telex expects "agent" not "assistant"
+    parts: List[MessagePart]
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class TaskStatus(BaseModel):
+    """Status of an async task"""
+    state: str  # "pending", "running", "completed", "failed"
+    progress: Optional[float] = None
+    message: Optional[str] = None
+
+
+class Task(BaseModel):
+    """An async task response conforming to Telex A2A protocol"""
+    id: str
+    status: TaskStatus
+    result: Optional[Dict[str, Any]] = None
+
+
+# Union type for result field
+JSONRPCResult = Message | Task
 
 
 class JSONRPCResponse(BaseModel):
@@ -103,23 +253,118 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
             ).model_dump(),
         )
 
+    # NATURAL LANGUAGE COMMAND INTERPRETATION ---------------------------------------
+    # Check if this is a natural language message (message/send with text content)
+    if req.method == "message/send" and req.params:
+        message_obj = req.params.get("message", {})
+        if isinstance(message_obj, dict):
+            # Interpret the command
+            interpreter = get_interpreter()
+            # Use robust extraction for user text
+            user_text = interpreter.extract_text(req.model_dump())
+            if user_text:
+                logger.info("a2a.natural_language.detected", text_length=len(user_text))
+                command_match = interpreter.interpret(user_text)
+                logger.info(
+                    "a2a.natural_language.interpreted",
+                    command=command_match.command_name,
+                    confidence=command_match.confidence,
+                )
+                # Handle help command specially
+                if command_match.command_name == "help":
+                    help_text = interpreter.get_help_text()
+                    result = Message(
+                        parts=[
+                            MessagePart(kind="text", text=help_text),
+                            MessagePart(
+                                kind="data",
+                                data={
+                                    "commands": list(interpreter.commands.keys()),
+                                    "reason": command_match.params.get("reason"),
+                                    "interpreted_from": user_text,
+                                }
+                            )
+                        ]
+                    )
+                    resp = JSONRPCResponse(id=req.id, result=result)
+                    return JSONResponse(status_code=200, content=resp.model_dump())
+                # Execute the matched command
+                try:
+                    handlers = CommandHandlers(db)
+                    handler_method = getattr(handlers, command_match.command_name)
+                    result_data = await handler_method(command_match.params)
+                    
+                    # Build message parts
+                    message_parts = []
+                    
+                    # Add summary as text
+                    if result_data.get("summary"):
+                        message_parts.append(MessagePart(kind="text", text=result_data["summary"]))
+                    
+                    # Add artifacts as data
+                    if result_data.get("artifacts"):
+                        message_parts.append(MessagePart(kind="data", data=result_data["artifacts"]))
+                    
+                    # Add metadata
+                    metadata = {
+                        **result_data.get("meta", {}),
+                        "interpreted_from": user_text,
+                        "command": command_match.command_name,
+                        "confidence": command_match.confidence,
+                        "status": result_data.get("status", "success"),
+                    }
+                    
+                    result = Message(
+                        parts=message_parts,
+                        metadata=metadata
+                    )
+                    resp = JSONRPCResponse(id=req.id, result=result)
+                    logger.info(
+                        "a2a.natural_language.success",
+                        command=command_match.command_name,
+                        status=result_data.get("status"),
+                    )
+                    return JSONResponse(status_code=200, content=resp.model_dump())
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception(
+                        "a2a.natural_language.error",
+                        command=command_match.command_name,
+                        error=str(exc),
+                    )
+                    return JSONResponse(
+                        status_code=200,
+                        content=JSONRPCResponse(
+                            id=req.id,
+                            error=JSONRPCError(
+                                code=500,
+                                message=f"Command execution failed: {command_match.command_name}",
+                                data={"detail": str(exc)},
+                            ),
+                        ).model_dump(),
+                    )
+
     # STATUS METHOD -----------------------------------------------------------------
     if req.method == "status":
         logger.info("a2a.status.start", request_id=req.id, agent=agent_name)
         settings = get_settings()
-        result = JSONRPCResult(
-            status="success",
-            summary="Service is healthy",
-            artifacts=[
-                {
-                    "kind": "meta",
-                    "data": {
+        
+        status_text = f"🟢 **BARA Service is healthy**\n\n"
+        status_text += f"**Agent:** {agent_name}\n"
+        status_text += f"**Environment:** {settings.ENV}\n"
+        status_text += f"**Configured Agent:** {settings.A2A_AGENT_NAME}\n"
+        
+        result = Message(
+            parts=[
+                MessagePart(kind="text", text=status_text),
+                MessagePart(
+                    kind="data",
+                    data={
                         "agent": agent_name,
                         "configured_agent": settings.A2A_AGENT_NAME,
                         "env": settings.ENV,
-                    },
-                }
-            ],
+                    }
+                )
+            ]
         )
         resp = JSONRPCResponse(id=req.id, result=result)
         logger.info("a2a.status.success", request_id=req.id, agent=agent_name, env=settings.ENV)
@@ -233,20 +478,34 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
             summary_text = None
             if summarize:
                 summary_text = (
-                    f"Reconciled {batch_result.total_emails} emails | "
-                    f"matched={batch_result.total_matched} review={batch_result.total_needs_review} "
-                    f"rejected={batch_result.total_rejected} none={batch_result.total_no_candidates} "
-                    f"avg_conf={batch_result.average_confidence:.2f}"
+                    f"✅ **Reconciliation complete!**\n\n"
+                    f"📊 **Results:**\n"
+                    f"  • Total processed: {batch_result.total_emails}\n"
+                    f"  • Auto-matched: {batch_result.total_matched}\n"
+                    f"  • Needs review: {batch_result.total_needs_review}\n"
+                    f"  • Rejected: {batch_result.total_rejected}\n"
+                    f"  • No candidates: {batch_result.total_no_candidates}\n"
+                    f"  • Avg confidence: {batch_result.average_confidence:.2%}\n"
                 )
 
-            result = JSONRPCResult(
-                status="success",
-                summary=summary_text,
-                artifacts=result_artifacts,
-                meta={
-                    "batch": batch_result.get_summary(),
-                    "params": {"limit": limit, "email_ids": email_ids, "rematch": rematch},
-                },
+            # Build message parts
+            message_parts = []
+            if summary_text:
+                message_parts.append(MessagePart(kind="text", text=summary_text))
+            
+            # Add artifacts as structured data
+            if result_artifacts:
+                message_parts.append(MessagePart(kind="data", data=result_artifacts))
+            
+            # Create metadata
+            metadata = {
+                "batch": batch_result.get_summary(),
+                "params": {"limit": limit, "email_ids": email_ids, "rematch": rematch},
+            }
+            
+            result = Message(
+                parts=message_parts,
+                metadata=metadata
             )
             resp = JSONRPCResponse(id=req.id, result=result)
             logger.info(
@@ -280,11 +539,20 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
         params = req.params or {}
         job_id = f"recon-{req.id}"
         logger.info("a2a.execute.start", request_id=req.id, job_id=job_id, params=params)
-        result = JSONRPCResult(
-            status="accepted",
-            summary="Reconciliation job accepted (async execution placeholder)",
-            artifacts=[{"kind": "job", "data": {"job_id": job_id, "params": params}}],
-            meta={"state": "pending"},
+        
+        # Return a Task object for async execution
+        result = Task(
+            id=job_id,
+            status=TaskStatus(
+                state="pending",
+                progress=0.0,
+                message="Reconciliation job accepted (async execution placeholder)"
+            ),
+            result={
+                "job_id": job_id,
+                "params": params,
+                "state": "pending"
+            }
         )
         resp = JSONRPCResponse(id=req.id, result=result)
         logger.info("a2a.execute.accepted", request_id=req.id, job_id=job_id)

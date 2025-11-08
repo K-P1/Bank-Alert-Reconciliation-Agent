@@ -99,6 +99,17 @@ class MatchRepository(BaseRepository[Match]):
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
+    async def get_matched_email_ids(self) -> List[int]:
+        """
+        Get IDs of all emails that have been matched.
+
+        Returns:
+            List of email IDs that have matches
+        """
+        query = select(self.model.email_id).distinct()
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
     async def get_pending_review(self, limit: Optional[int] = None) -> List[Match]:
         """
         Get matches pending manual review.
