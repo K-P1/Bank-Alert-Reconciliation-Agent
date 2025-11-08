@@ -99,20 +99,73 @@ class BaseRepository(Generic[ModelType]):
     async def filter(self, **filters) -> List[ModelType]:
         """
         Filter records by field values.
+        
+        Supports comparison operators using double underscore syntax:
+        - field__lt: less than
+        - field__lte: less than or equal
+        - field__gt: greater than
+        - field__gte: greater than or equal
+        - field__ne: not equal
+        - field (no suffix): equal
 
         Args:
             **filters: Field name and value pairs
 
         Returns:
             List of matching model instances
+            
+        Examples:
+            # Get transactions with amount > 100
+            await repo.filter(amount__gt=100)
+            
+            # Get logs before a certain timestamp
+            await repo.filter(timestamp__lt=cutoff_date)
         """
         query = select(self.model)
-        for field_name, value in filters.items():
-            field = getattr(self.model, field_name)
-            query = query.where(field == value)
+        query = self._apply_filters(query, filters)
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
+
+    def _apply_filters(self, query, filters: dict):
+        """
+        Apply filters to a query with comparison operator support.
+
+        Args:
+            query: SQLAlchemy query
+            filters: Field name and value pairs with optional comparison operators
+
+        Returns:
+            Modified query
+        """
+        for filter_key, value in filters.items():
+            # Parse field name and operator
+            if "__" in filter_key:
+                field_name, operator = filter_key.rsplit("__", 1)
+            else:
+                field_name = filter_key
+                operator = "eq"
+
+            field = getattr(self.model, field_name)
+
+            # Apply comparison operator
+            if operator == "eq":
+                query = query.where(field == value)
+            elif operator == "ne":
+                query = query.where(field != value)
+            elif operator == "lt":
+                query = query.where(field < value)
+            elif operator == "lte":
+                query = query.where(field <= value)
+            elif operator == "gt":
+                query = query.where(field > value)
+            elif operator == "gte":
+                query = query.where(field >= value)
+            else:
+                # Fallback to equality for unknown operators
+                query = query.where(field == value)
+
+        return query
 
     async def update(self, id: int, **kwargs) -> Optional[ModelType]:
         """
@@ -147,22 +200,93 @@ class BaseRepository(Generic[ModelType]):
         await self.session.flush()
         return (result.rowcount or 0) > 0  # type: ignore
 
+    async def delete_all(self, **filters) -> int:
+        """
+        Delete all records matching the given filters.
+        If no filters provided, deletes ALL records (use with caution!).
+
+        Args:
+            **filters: Field name and value pairs to filter deletion
+
+        Returns:
+            Number of records deleted
+        """
+        query = delete(self.model)
+        
+        # Apply filters if provided
+        if filters:
+            query = self._apply_filters_to_delete(query, filters)
+        
+        result = await self.session.execute(query)
+        await self.session.flush()
+        return result.rowcount or 0  # type: ignore
+
+    def _apply_filters_to_delete(self, query, filters: dict):
+        """
+        Apply filters to a delete query.
+
+        Args:
+            query: SQLAlchemy delete query
+            filters: Field name and value pairs with optional comparison operators
+
+        Returns:
+            Modified query
+        """
+        for filter_key, value in filters.items():
+            # Parse field name and operator
+            if "__" in filter_key:
+                field_name, operator = filter_key.rsplit("__", 1)
+            else:
+                field_name = filter_key
+                operator = "eq"
+
+            field = getattr(self.model, field_name)
+
+            # Apply comparison operator
+            if operator == "eq":
+                query = query.where(field == value)
+            elif operator == "ne":
+                query = query.where(field != value)
+            elif operator == "lt":
+                query = query.where(field < value)
+            elif operator == "lte":
+                query = query.where(field <= value)
+            elif operator == "gt":
+                query = query.where(field > value)
+            elif operator == "gte":
+                query = query.where(field >= value)
+            else:
+                # Fallback to equality for unknown operators
+                query = query.where(field == value)
+
+        return query
+
     async def count(self, **filters) -> int:
         """
         Count records matching the given filters.
+        
+        Supports comparison operators using double underscore syntax:
+        - field__lt: less than
+        - field__lte: less than or equal
+        - field__gt: greater than
+        - field__gte: greater than or equal
+        - field__ne: not equal
+        - field (no suffix): equal
 
         Args:
             **filters: Field name and value pairs
 
         Returns:
             Number of matching records
+            
+        Examples:
+            # Count logs older than cutoff date
+            await repo.count(timestamp__lt=cutoff_date)
         """
         from sqlalchemy import func
 
         query = select(func.count(self.model.id))  # type: ignore
-        for field_name, value in filters.items():
-            field = getattr(self.model, field_name)
-            query = query.where(field == value)
+        query = self._apply_filters(query, filters)
 
         result = await self.session.execute(query)
         return result.scalar() or 0

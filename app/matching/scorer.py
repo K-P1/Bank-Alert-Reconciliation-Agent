@@ -115,30 +115,28 @@ class MatchScorer:
         Returns:
             List of scored candidates
         """
+        logger.info(f"[SCORER] Starting scoring for {len(transactions)} candidates")
         candidates = []
 
-        for transaction in transactions:
+        for i, transaction in enumerate(transactions, 1):
             try:
                 candidate = self.score_candidate(email, transaction)
                 candidates.append(candidate)
+                logger.debug(
+                    f"[SCORER] Candidate {i}/{len(transactions)}: "
+                    f"{transaction.transaction_id} scored {candidate.total_score:.4f}"
+                )
             except Exception as e:
                 logger.error(
-                    f"Failed to score candidate {transaction.transaction_id}: {e}",
+                    f"[SCORER] Failed to score candidate {transaction.transaction_id}: {e}",
                     exc_info=True,
                 )
                 continue
 
+        avg_score = sum(c.total_score for c in candidates) / len(candidates) if candidates else 0
         logger.info(
-            f"Scored {len(candidates)} candidates for email {email.message_id}",
-            extra={
-                "email_id": email.message_id,
-                "total_candidates": len(candidates),
-                "avg_score": (
-                    sum(c.total_score for c in candidates) / len(candidates)
-                    if candidates
-                    else 0
-                ),
-            },
+            f"[SCORER] ✓ Scored {len(candidates)}/{len(transactions)} candidates | "
+            f"Average score: {avg_score:.4f}"
         )
 
         return candidates
@@ -153,12 +151,21 @@ class MatchScorer:
         Returns:
             Ranked candidates
         """
+        if not candidates:
+            return candidates
+            
         # Sort by total score (descending)
         ranked = sorted(candidates, key=lambda c: c.total_score, reverse=True)
 
         # Assign ranks
         for i, candidate in enumerate(ranked, start=1):
             candidate.rank = i
+
+        logger.info(
+            f"[SCORER] Candidates ranked | "
+            f"Best: {ranked[0].external_transaction_id} ({ranked[0].total_score:.4f}) | "
+            f"Worst: {ranked[-1].external_transaction_id} ({ranked[-1].total_score:.4f})"
+        )
 
         return ranked
 
@@ -189,14 +196,12 @@ class MatchScorer:
 
         if len(tied_candidates) <= 1:
             # No ties
+            logger.debug("[SCORER] No ties detected")
             return candidates
 
         logger.info(
-            f"Found {len(tied_candidates)} tied candidates, applying tie-breaking",
-            extra={
-                "best_score": best_score,
-                "tie_threshold": max_diff,
-            },
+            f"[SCORER] Tie-breaking: {len(tied_candidates)} candidates within threshold | "
+            f"Best score: {best_score:.4f}, Threshold: {max_diff:.4f}"
         )
 
         # Apply tie-breaking preferences
@@ -251,17 +256,26 @@ class MatchScorer:
             Match status
         """
         if best_candidate is None:
+            logger.debug("[SCORER] No candidate - status: no_candidates")
             return "no_candidates"
 
         thresholds = self.config.thresholds
         confidence = best_candidate.total_score
 
         if confidence >= thresholds.auto_match:
-            return "auto_matched"
+            status = "auto_matched"
         elif confidence >= thresholds.needs_review:
-            return "needs_review"
+            status = "needs_review"
         else:
-            return "rejected"
+            status = "rejected"
+            
+        logger.info(
+            f"[SCORER] Match decision: {status} | "
+            f"Confidence: {confidence:.4f} | "
+            f"Thresholds: auto={thresholds.auto_match:.2f}, review={thresholds.needs_review:.2f}"
+        )
+        
+        return status
 
     def create_match_result(
         self, email: NormalizedEmail, email_db_id: int, candidates: list[MatchCandidate]
@@ -330,14 +344,12 @@ class MatchScorer:
             result.add_note(f"Best candidate score: {best_candidate.total_score:.4f}")
 
         logger.info(
-            f"Created match result for email {email.message_id}",
-            extra={
-                "email_id": email_db_id,
-                "status": status,
-                "matched": result.matched,
-                "confidence": result.confidence,
-                "candidates": len(candidates),
-            },
+            f"[SCORER] ✓ Match result created | "
+            f"Email: {email.message_id} | "
+            f"Status: {status} | "
+            f"Matched: {result.matched} | "
+            f"Confidence: {result.confidence:.4f} | "
+            f"Candidates: {len(candidates)}"
         )
 
         return result

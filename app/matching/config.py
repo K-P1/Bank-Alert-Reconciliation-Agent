@@ -1,4 +1,27 @@
-"""Configuration for the matching engine."""
+"""Configuration for the matching engine.
+
+Match Status Flow:
+------------------
+1. Scorer determines match quality and returns internal status:
+   - "auto_matched"  : Confidence >= 0.80 (auto_match threshold)
+   - "needs_review"  : Confidence 0.60-0.79 (needs_review threshold)
+   - "rejected"      : Confidence < 0.60 (below reject threshold)
+   - "no_candidates" : No matching transactions found
+
+2. Engine maps internal status to database status:
+   - "auto_matched"  -> "matched"        (stored in DB)
+   - "needs_review"  -> "review"         (stored in DB)
+   - "rejected"      -> "rejected"       (stored in DB)
+   - "no_candidates" -> "no_candidates"  (stored in DB)
+   - unknown         -> "pending"        (fallback)
+
+Database Status Values:
+- "matched"        : Auto-accepted match (high confidence >= 0.80)
+- "review"         : Needs manual review (medium confidence 0.60-0.79)
+- "rejected"       : Auto-rejected (low confidence < 0.60)
+- "no_candidates"  : No potential matches found
+- "pending"        : Not yet processed or unknown state
+"""
 
 from __future__ import annotations
 

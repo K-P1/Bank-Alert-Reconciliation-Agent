@@ -14,6 +14,14 @@ from app.transactions.clients.base import (
     RawTransaction,
     APIConnectionError,
 )
+from app.testing.mock_data_templates import (
+    TRANSACTION_TEMPLATES,
+    NIGERIAN_BANKS,
+    generate_transaction_description,
+    generate_realistic_amount,
+    generate_reference,
+    generate_account_number,
+)
 
 
 class MockTransactionClient(BaseTransactionClient):
@@ -46,81 +54,6 @@ class MockTransactionClient(BaseTransactionClient):
         self.failure_rate = failure_rate
         self.latency_ms = latency_ms
         self._transaction_counter = 0
-
-        # Mock transaction templates for realistic data
-        self._transaction_templates = [
-            {
-                "description": "POS Purchase - {merchant}",
-                "type": "debit",
-                "merchants": [
-                    "ShopRite Lagos",
-                    "Spar Supermarket",
-                    "Total Filling Station",
-                    "Chicken Republic",
-                    "Mr Biggs Restaurant",
-                ],
-            },
-            {
-                "description": "Transfer from {name}",
-                "type": "credit",
-                "names": [
-                    "Adebayo Oluwaseun",
-                    "Chidinma Okafor",
-                    "Ibrahim Musa",
-                    "Ngozi Eze",
-                    "Babajide Williams",
-                ],
-            },
-            {
-                "description": "ATM Withdrawal - {location}",
-                "type": "debit",
-                "locations": [
-                    "Ikeja GRA",
-                    "Victoria Island",
-                    "Lekki Phase 1",
-                    "Surulere",
-                    "Yaba",
-                ],
-            },
-            {
-                "description": "Salary Payment - {company}",
-                "type": "credit",
-                "companies": [
-                    "ABC Limited",
-                    "XYZ Corporation",
-                    "Tech Solutions Ltd",
-                    "Global Services",
-                    "Premium Industries",
-                ],
-            },
-            {
-                "description": "Airtime Recharge - {network}",
-                "type": "debit",
-                "networks": ["MTN", "Glo", "Airtel", "9mobile"],
-            },
-            {
-                "description": "Bank Charge - {charge_type}",
-                "type": "debit",
-                "charge_types": [
-                    "SMS Alert Fee",
-                    "Maintenance Fee",
-                    "Transfer Fee",
-                    "COT",
-                ],
-            },
-        ]
-
-        # Nigerian banks for reference generation
-        self._banks = [
-            "GTB",
-            "FirstBank",
-            "Access",
-            "Zenith",
-            "UBA",
-            "Fidelity",
-            "Union",
-            "Stanbic",
-        ]
 
     def get_source_name(self) -> str:
         """Return source identifier."""
@@ -164,8 +97,9 @@ class MockTransactionClient(BaseTransactionClient):
         transactions = []
         time_span = (end_time - start_time).total_seconds()
 
-        # Generate between 0 and limit transactions
-        num_transactions = min(limit, random.randint(0, int(limit * 1.2)))
+        # Generate exactly 'limit' transactions for predictability
+        # (Previously was random between 0 and limit*1.2)
+        num_transactions = limit
 
         for i in range(num_transactions):
             # Random timestamp within range
@@ -196,51 +130,18 @@ class MockTransactionClient(BaseTransactionClient):
         self._transaction_counter += 1
 
         # Pick a random template
-        template = random.choice(self._transaction_templates)
+        template = random.choice(TRANSACTION_TEMPLATES)
         tx_type: str = str(template["type"])
 
         # Generate description with realistic details
-        detail: str
-        if "merchants" in template:
-            detail = str(random.choice(template["merchants"]))
-        elif "names" in template:
-            detail = str(random.choice(template["names"]))
-        elif "locations" in template:
-            detail = str(random.choice(template["locations"]))
-        elif "companies" in template:
-            detail = str(random.choice(template["companies"]))
-        elif "networks" in template:
-            detail = str(random.choice(template["networks"]))
-        elif "charge_types" in template:
-            detail = str(random.choice(template["charge_types"]))
-        else:
-            detail = "Transaction"
+        description, detail = generate_transaction_description(template)
 
-        description: str = str(template["description"]).format(
-            merchant=detail,
-            name=detail,
-            location=detail,
-            company=detail,
-            network=detail,
-            charge_type=detail,
-        )
-
-        # Generate realistic amounts based on transaction type
-        if "Salary" in description:
-            amount = round(random.uniform(50000, 500000), 2)
-        elif "ATM" in description or "POS" in description:
-            amount = round(random.uniform(1000, 50000), 2)
-        elif "Airtime" in description:
-            amount = round(random.choice([100, 200, 500, 1000, 2000, 5000]), 2)
-        elif "Bank Charge" in description:
-            amount = round(random.uniform(10, 500), 2)
-        else:
-            amount = round(random.uniform(500, 100000), 2)
+        # Generate realistic amount based on transaction type
+        amount = generate_realistic_amount(description)
 
         # Generate reference codes
-        bank = random.choice(self._banks)
-        ref_num = random.randint(100000, 999999)
-        reference = f"{bank}/TRF/{ref_num}/{timestamp.strftime('%y%m%d')}"
+        bank = random.choice(NIGERIAN_BANKS)
+        reference = generate_reference(bank, timestamp)
 
         # Generate transaction ID
         tx_id = f"TXN{timestamp.strftime('%Y%m%d')}{self._transaction_counter:06d}"
@@ -264,7 +165,7 @@ class MockTransactionClient(BaseTransactionClient):
             reference=reference,
             customer_name=customer_name,
             customer_email=customer_email,
-            account_reference=f"****{random.randint(1000, 9999)}",
+            account_reference=generate_account_number(),
             transaction_type=tx_type,
             status="success",
             metadata={

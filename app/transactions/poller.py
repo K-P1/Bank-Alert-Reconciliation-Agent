@@ -55,10 +55,11 @@ class TransactionPoller:
         self._last_poll_time: Optional[datetime] = None
 
         logger.info(
-            "poller_initialized",
+            "poller.initialized",
             client_type=self.client.get_source_name(),
             poll_interval_minutes=self.config.poll_interval_minutes,
             lookback_hours=self.config.lookback_hours,
+            enabled=self.config.enabled,
         )
 
     def _create_default_client(self) -> BaseTransactionClient:
@@ -84,16 +85,19 @@ class TransactionPoller:
         Runs in the background on configured interval.
         """
         if self._running:
-            logger.warning("poller_already_running")
+            logger.warning("poller.already_running")
             return
 
         self._running = True
         logger.info(
-            "poller_started", interval_minutes=self.config.poll_interval_minutes
+            "poller.started",
+            interval_minutes=self.config.poll_interval_minutes,
+            run_on_startup=self.config.run_on_startup,
         )
 
         # Run immediately on startup if configured
         if self.config.run_on_startup:
+            logger.info("poller.running_initial_poll")
             await self.poll_once()
 
         # Start the polling loop
@@ -102,10 +106,11 @@ class TransactionPoller:
     async def stop(self):
         """Stop the polling loop gracefully."""
         if not self._running:
+            logger.debug("poller.not_running")
             return
 
         self._running = False
-        logger.info("poller_stopping")
+        logger.info("poller.stopping")
 
         if self._task:
             self._task.cancel()
@@ -114,7 +119,7 @@ class TransactionPoller:
             except asyncio.CancelledError:
                 pass
 
-        logger.info("poller_stopped")
+        logger.info("poller.stopped")
 
     async def _polling_loop(self):
         """Main polling loop that runs on interval."""
@@ -154,10 +159,11 @@ class TransactionPoller:
         )
 
         logger.info(
-            "poll_started",
+            "poll.started",
             run_id=run_id,
             source=self.client.get_source_name(),
             lookback_hours=self.config.lookback_hours,
+            batch_size=self.config.batch_size,
         )
 
         try:
@@ -165,12 +171,27 @@ class TransactionPoller:
             end_time = datetime.now(timezone.utc)
             start_time = end_time - self.config.get_lookback_timedelta()
 
+            logger.debug(
+                "poll.time_range",
+                run_id=run_id,
+                start_time=start_time.isoformat(),
+                end_time=end_time.isoformat(),
+            )
+
             # Fetch transactions with retry and circuit breaker
+            logger.info("poll.fetching_transactions", run_id=run_id)
             transactions = await self._fetch_transactions_with_resilience(
                 start_time, end_time
             )
+            
+            logger.info(
+                "poll.transactions_fetched",
+                run_id=run_id,
+                count=len(transactions),
+            )
 
             # Store transactions with deduplication
+            logger.info("poll.storing_transactions", run_id=run_id)
             stored_result = await self._store_transactions(transactions)
 
             # Update metrics
@@ -179,6 +200,14 @@ class TransactionPoller:
                 new=stored_result["new"],
                 duplicate=stored_result["duplicate"],
                 stored=stored_result["stored"],
+                failed=stored_result["failed"],
+            )
+
+            logger.info(
+                "poll.storage_complete",
+                run_id=run_id,
+                new=stored_result["new"],
+                duplicate=stored_result["duplicate"],
                 failed=stored_result["failed"],
             )
 
@@ -203,11 +232,20 @@ class TransactionPoller:
                 "duration_seconds": last_run.duration_seconds if last_run else 0,
             }
 
-            logger.info("poll_completed", **result)
+            logger.info(
+                "poll.completed",
+                run_id=run_id,
+                status=status.value,
+                fetched=len(transactions),
+                new=stored_result["new"],
+                duplicate=stored_result["duplicate"],
+                failed=stored_result["failed"],
+                duration_seconds=result["duration_seconds"],
+            )
             return result
 
         except CircuitOpenError as e:
-            logger.error("poll_failed_circuit_open", run_id=run_id, error=str(e))
+            logger.error("poll.failed.circuit_open", run_id=run_id, error=str(e))
             self.metrics.record_error(str(e))
             self.metrics.end_run(PollStatus.FAILED)
             return {
@@ -218,10 +256,11 @@ class TransactionPoller:
 
         except Exception as e:
             logger.error(
-                "poll_failed",
+                "poll.failed",
                 run_id=run_id,
                 error=str(e),
                 error_type=type(e).__name__,
+                exc_info=True,
             )
             self.metrics.record_error(str(e))
             self.metrics.end_run(PollStatus.FAILED)
@@ -281,8 +320,10 @@ class TransactionPoller:
         if not raw_transactions:
             return result
 
+        logger.debug("storage.started", count=len(raw_transactions))
+
         async with UnitOfWork(session=self._session) as uow:
-            for raw_tx in raw_transactions:
+            for idx, raw_tx in enumerate(raw_transactions, 1):
                 try:
                     # Normalize transaction data
                     tx_data = self.client.normalize_transaction(raw_tx)
@@ -294,17 +335,28 @@ class TransactionPoller:
                         )
                         if existing:
                             result["duplicate"] += 1
+                            logger.debug(
+                                "storage.duplicate",
+                                transaction_id=tx_data["transaction_id"],
+                                idx=idx,
+                            )
                             continue
 
                     # Store new transaction
                     await uow.transactions.create(**tx_data)
                     result["new"] += 1
                     result["stored"] += 1
+                    logger.debug(
+                        "storage.stored",
+                        transaction_id=tx_data["transaction_id"],
+                        idx=idx,
+                    )
 
                 except Exception as e:
                     logger.error(
-                        "store_transaction_failed",
-                        transaction_id=raw_tx.transaction_id,
+                        "storage.failed",
+                        transaction_id=getattr(raw_tx, "transaction_id", "unknown"),
+                        idx=idx,
                         error=str(e),
                     )
                     result["failed"] += 1
@@ -315,6 +367,15 @@ class TransactionPoller:
 
         db_latency = time.time() - db_start
         self.metrics.record_db_latency(db_latency)
+
+        logger.info(
+            "storage.complete",
+            total=len(raw_transactions),
+            new=result["new"],
+            duplicate=result["duplicate"],
+            failed=result["failed"],
+            latency_seconds=db_latency,
+        )
 
         return result
 

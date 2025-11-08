@@ -101,6 +101,30 @@ class EmailRepository(BaseRepository[Email]):
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
+    async def get_unmatched(self, limit: Optional[int] = None) -> List[Email]:
+        """
+        Get emails that don't have a match record yet.
+
+        Args:
+            limit: Maximum number of emails to return
+
+        Returns:
+            List of unmatched emails
+        """
+        from app.db.models.match import Match
+        
+        query = (
+            select(self.model)
+            .outerjoin(Match, self.model.id == Match.email_id)
+            .where(Match.id.is_(None)) # Only emails without a match record
+            .order_by(self.model.created_at.desc())
+        )
+        if limit:
+            query = query.limit(limit)
+
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
     async def count_unprocessed(self) -> int:
         """Get count of unprocessed emails."""
         return await self.count(is_processed=False)

@@ -15,6 +15,18 @@ class MatchRepository(BaseRepository[Match]):
         """Get a match by email ID."""
         return await self.get_by_field("email_id", email_id)
 
+    async def exists_for_email(self, email_id: int) -> bool:
+        """
+        Check if a match exists for an email.
+
+        Args:
+            email_id: Email ID
+
+        Returns:
+            True if a match exists, False otherwise
+        """
+        return await self.exists(email_id=email_id)
+
     async def get_by_transaction_id(self, transaction_id: int) -> List[Match]:
         """
         Get all matches for a transaction.

@@ -24,11 +24,16 @@ configure_logging(settings.ENV)
 async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
     # Startup
-    logger.info("Starting Bank Alert Reconciliation Agent...")
+    logger.info("=" * 70)
+    logger.info("🚀 Starting Bank Alert Reconciliation Agent (BARA)...")
+    logger.info(f"Environment: {settings.ENV}")
+    logger.info(f"Database: {settings.DATABASE_URL.split('/')[-1] if settings.DATABASE_URL else 'Not configured'}")
+    logger.info("=" * 70)
 
     # Initialize email fetcher if IMAP is configured
     if all([settings.IMAP_HOST, settings.IMAP_USER, settings.IMAP_PASS]):
         try:
+            logger.info("📧 Initializing email fetcher...")
             email_config = EmailConfig.from_settings(settings)
             fetcher = EmailFetcher(settings, email_config)
             set_fetcher(fetcher)
@@ -36,26 +41,36 @@ async def lifespan(app: FastAPI):
             # Start background polling if enabled
             if email_config.fetcher.enabled and email_config.fetcher.start_immediately:
                 await fetcher.start()
-                logger.info("Email fetcher started automatically")
+                logger.info("✓ Email fetcher started automatically")
             else:
-                logger.info("Email fetcher initialized (not auto-started)")
+                logger.info("✓ Email fetcher initialized (manual start required)")
 
         except Exception as e:
-            logger.error(f"Failed to initialize email fetcher: {e}")
+            logger.error(f"✗ Failed to initialize email fetcher: {e}", exc_info=True)
     else:
-        logger.warning("IMAP settings not configured, email fetcher disabled")
+        logger.warning("⚠ IMAP settings not configured, email fetcher disabled")
+
+    logger.info("=" * 70)
+    logger.info("✓ BARA startup complete - Ready to process requests")
+    logger.info("=" * 70)
 
     yield
 
     # Shutdown
-    logger.info("Shutting down Bank Alert Reconciliation Agent...")
+    logger.info("=" * 70)
+    logger.info("🛑 Shutting down Bank Alert Reconciliation Agent...")
+    logger.info("=" * 70)
 
     # Stop email fetcher if running
     from app.emails.router import _fetcher
 
     if _fetcher:
         await _fetcher.stop()
-        logger.info("Email fetcher stopped")
+        logger.info("✓ Email fetcher stopped")
+
+    logger.info("=" * 70)
+    logger.info("✓ BARA shutdown complete")
+    logger.info("=" * 70)
 
 
 app = FastAPI(
@@ -69,9 +84,11 @@ app.include_router(emails_router)
 
 @app.get("/")
 def health_check():
+    logger.debug("Health check endpoint called")
     return {"status": "ok"}
 
 
 @app.get("/healthz")
 def healthz():
+    logger.debug(f"Healthz endpoint called (env: {settings.ENV})")
     return {"status": "ok", "env": settings.ENV}

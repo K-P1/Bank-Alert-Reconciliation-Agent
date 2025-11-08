@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     GROQ_API_KEY: Optional[str] = None
     GROQ_MODEL: Optional[str] = None
 
+    # Mock Data Configuration (Development)
+    MOCK_EMAIL_COUNT: int = 10
+    POLLER_BATCH_SIZE: int = 100
+
     # Model config
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"

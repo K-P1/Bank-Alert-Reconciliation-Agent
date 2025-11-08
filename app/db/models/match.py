@@ -72,7 +72,7 @@ class Match(Base):
         nullable=False,
         default="pending",
         index=True,
-        comment="Match status (e.g., 'pending', 'confirmed', 'rejected', 'review')",
+        comment="Match status: 'matched' (auto-accepted), 'review' (needs manual review), 'rejected' (below threshold), 'no_candidates' (no matches found), 'pending' (not yet processed)",
     )
     reviewed_by: Mapped[Optional[str]] = mapped_column(
         String(255), nullable=True, comment="User or system that reviewed this match"

@@ -6,6 +6,24 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+# Import bank mappings to dynamically build sender whitelist
+from app.normalization.banks import BANK_MAPPINGS
+
+
+# Build sender whitelist from all bank domains
+def _build_sender_whitelist() -> list[str]:
+    """Build sender whitelist from all bank domains in BANK_MAPPINGS."""
+    domains = []
+    for bank_info in BANK_MAPPINGS.values():
+        for domain in bank_info["domains"]:
+            # Add both with and without @ prefix for flexibility
+            if not domain.startswith("@"):
+                domains.append(f"@{domain}")
+            domains.append(domain)
+    
+    # Remove duplicates and sort
+    return sorted(set(domains))
+
 
 class FetcherConfig(BaseModel):
     """Configuration for IMAP email fetcher."""
@@ -26,32 +44,18 @@ class FetcherConfig(BaseModel):
     imap_timeout: int = Field(
         default=30, ge=5, le=120, description="IMAP connection timeout in seconds"
     )
+    mock_email_count: int = Field(
+        default=10, ge=1, le=100, description="Number of mock emails to generate in dev mode"
+    )
 
 
 class FilterConfig(BaseModel):
     """Configuration for rule-based email filtering."""
 
-    # Sender whitelist (domains)
+    # Sender whitelist (domains) - dynamically built from BANK_MAPPINGS
     sender_whitelist: list[str] = Field(
-        default=[
-            "@gtbank.com",
-            "@accessbankplc.com",
-            "@zenithbank.com",
-            "@firstbanknigeria.com",
-            "@uba.com",
-            "@stanbicibtc.com",
-            "@fidelitybank.ng",
-            "@fcmb.com",
-            "@unionbank.com",
-            "@sterlingbank.com",
-            "@ecobank.com",
-            "@wemabank.com",
-            "@polaris.com",
-            "@providusbank.com",
-            "@alerts.gtbank.com",
-            "@alerts.accessbank.com",
-        ],
-        description="List of trusted sender domains",
+        default_factory=_build_sender_whitelist,
+        description="List of trusted sender domains (auto-generated from BANK_MAPPINGS)",
     )
 
     # Subject keyword filters (must contain at least one)

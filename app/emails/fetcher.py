@@ -49,28 +49,32 @@ class EmailFetcher:
     async def start(self) -> None:
         """Start background email polling."""
         if self._running:
-            logger.warning("Email fetcher already running")
+            logger.warning("[FETCHER] Email fetcher already running")
             return
 
         if not self.config.fetcher.enabled:
-            logger.info("Email fetcher disabled in config")
+            logger.info("[FETCHER] Email fetcher disabled in configuration")
             return
 
         self._running = True
         self._task = asyncio.create_task(self._poll_loop())
         logger.info(
-            f"Email fetcher started (interval: {self.config.fetcher.poll_interval_minutes} minutes)"
+            f"[FETCHER] ✓ Email fetcher started | "
+            f"Poll interval: {self.config.fetcher.poll_interval_minutes} minutes"
         )
 
         # Run immediately if configured
         if self.config.fetcher.start_immediately:
+            logger.info("[FETCHER] Running initial fetch immediately")
             asyncio.create_task(self.fetch_once())
 
     async def stop(self) -> None:
         """Stop background email polling."""
         if not self._running:
+            logger.debug("[FETCHER] Email fetcher not running")
             return
 
+        logger.info("[FETCHER] Stopping email fetcher...")
         self._running = False
         if self._task:
             self._task.cancel()
@@ -80,7 +84,7 @@ class EmailFetcher:
                 pass
             self._task = None
 
-        logger.info("Email fetcher stopped")
+        logger.info("[FETCHER] ✓ Email fetcher stopped")
 
     async def _poll_loop(self) -> None:
         """Background polling loop."""
@@ -101,22 +105,25 @@ class EmailFetcher:
         """
         # Prevent concurrent polls
         if self._poll_lock.locked():
-            logger.warning("Poll already in progress, skipping")
+            logger.warning("[FETCHER] Poll already in progress, skipping")
             return {"status": "skipped", "reason": "poll_in_progress"}
 
         async with self._poll_lock:
             run_id = f"fetch-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
             self.metrics.start_run(run_id)
 
-            logger.info(f"Starting email fetch cycle: {run_id}")
+            logger.info(f"[FETCHER] ========== Starting fetch cycle: {run_id} ==========")
 
             try:
                 # Fetch emails from IMAP
+                logger.info(f"[FETCHER] Connecting to IMAP and fetching emails...")
                 raw_emails = await asyncio.to_thread(self._fetch_from_imap)
                 self.metrics.record_fetch(len(raw_emails))
 
+                logger.info(f"[FETCHER] Fetched {len(raw_emails)} emails from IMAP")
+
                 if not raw_emails:
-                    logger.info("No new emails to process")
+                    logger.info("[FETCHER] ✓ No new emails to process")
                     self.metrics.end_run("SUCCESS")
                     return {
                         "status": "success",
@@ -126,16 +133,19 @@ class EmailFetcher:
                     }
 
                 # Parse and store emails
+                logger.info(f"[FETCHER] Processing {len(raw_emails)} emails...")
                 emails_processed = 0
                 emails_stored = 0
 
-                for raw_email in raw_emails:
+                for idx, raw_email in enumerate(raw_emails, 1):
+                    logger.debug(f"[FETCHER] Processing email {idx}/{len(raw_emails)}: {raw_email.message_id}")
                     try:
                         # Parse email
                         parsed_email = await self.parser.parse_email(raw_email)
 
                         if parsed_email is None:
                             # Filtered out
+                            logger.debug(f"[FETCHER] Email {idx} filtered out")
                             self.metrics.record_filtered()
                             continue
 
@@ -159,15 +169,25 @@ class EmailFetcher:
                         if stored:
                             self.metrics.record_stored()
                             emails_stored += 1
+                            logger.debug(f"[FETCHER] ✓ Email {idx} stored successfully")
+                        else:
+                            logger.debug(f"[FETCHER] Email {idx} skipped (duplicate)")
 
                         emails_processed += 1
 
                     except Exception as e:
                         logger.error(
-                            f"Error processing email {raw_email.message_id}: {e}"
+                            f"[FETCHER] Error processing email {idx} ({raw_email.message_id}): {e}"
                         )
                         self.metrics.record_failed(str(e))
                         continue
+
+                logger.info(
+                    f"[FETCHER] Processing complete | "
+                    f"Fetched: {len(raw_emails)} | "
+                    f"Processed: {emails_processed} | "
+                    f"Stored: {emails_stored}"
+                )
 
                 # Determine final status
                 from typing import Literal
@@ -191,16 +211,15 @@ class EmailFetcher:
                 }
 
                 logger.info(
-                    f"Fetch cycle completed: {run_id} - "
-                    f"fetched={len(raw_emails)}, "
-                    f"processed={emails_processed}, "
-                    f"stored={emails_stored}"
+                    f"[FETCHER] ========== ✓ Fetch cycle {run_id} completed ========== | "
+                    f"Status: {status} | Fetched: {len(raw_emails)} | "
+                    f"Processed: {emails_processed} | Stored: {emails_stored}"
                 )
 
                 return result
 
             except Exception as e:
-                logger.error(f"Fetch cycle failed: {e}", exc_info=True)
+                logger.error(f"[FETCHER] ✗ Fetch cycle {run_id} failed: {e}", exc_info=True)
                 self.metrics.end_run("FAILED", error_message=str(e))
                 return {
                     "status": "failed",

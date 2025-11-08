@@ -18,7 +18,7 @@ This document details exactly what was built to complete Stage 1 of the Roadmap:
 ### 1) JSON-RPC A2A endpoint
 
 - Routes added:
-  - POST `/a2a/agent/{agent_name}` (generic)
+  - POST `/a2a/agent/BARA` (generic)
   - POST `/a2a/agent/bankMatcher` (fixed alias for convenience/docs)
 - JSON-RPC 2.0 validation:
   - Validates `jsonrpc == "2.0"`, `id`, `method`, and optional `params`
@@ -97,7 +97,7 @@ Files:
   - GET `/` → `{ "status": "ok" }`
   - GET `/healthz` → `{ "status": "ok", "env": "development" }`
 - A2A (JSON-RPC 2.0)
-  - POST `/a2a/agent/{agent_name}`
+  - POST `/a2a/agent/BARA`
   - POST `/a2a/agent/bankMatcher`
 
 ### example requests/responses
@@ -154,7 +154,6 @@ Files:
   }
 }
 ```
-
 
 ## files added/updated
 

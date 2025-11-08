@@ -8,6 +8,7 @@ API client configuration, and operational parameters.
 from typing import Optional
 from pydantic import BaseModel, Field
 from datetime import timedelta
+from app.core.config import get_settings
 
 
 class RetryConfig(BaseModel):
@@ -112,7 +113,14 @@ def get_poller_config() -> PollerConfig:
     Get poller configuration from database or return defaults.
 
     In future versions, this will read from the config table.
-    For now, returns the default configuration.
+    For now, returns the default configuration with env overrides.
     """
     # TODO: Load from database config table
-    return DEFAULT_POLLER_CONFIG
+    settings = get_settings()
+    
+    # Override batch_size from environment if set
+    config = PollerConfig()
+    if hasattr(settings, 'POLLER_BATCH_SIZE'):
+        config.batch_size = settings.POLLER_BATCH_SIZE
+    
+    return config

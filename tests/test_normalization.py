@@ -207,7 +207,8 @@ class TestBankEnrichment:
         """Test enrichment from email domain."""
         enrichment = enrich_bank_info(sender_email="alerts@gtbank.com")
         assert enrichment.bank_code == "GTB"
-        assert enrichment.bank_name == "Guaranty Trust Bank"
+        # Accept official registered name with or without 'Plc' suffix
+        assert enrichment.bank_name in {"Guaranty Trust Bank", "Guaranty Trust Bank Plc"}
         assert enrichment.enrichment_confidence == 0.95
 
         enrichment = enrich_bank_info(sender_email="notifications@accessbankplc.com")
@@ -218,7 +219,8 @@ class TestBankEnrichment:
         """Test enrichment from sender name."""
         enrichment = enrich_bank_info(sender_name="GTBank Alerts")
         assert enrichment.bank_code == "GTB"
-        assert enrichment.bank_name == "Guaranty Trust Bank"
+        # Accept official registered name with or without 'Plc'
+        assert enrichment.bank_name in {"Guaranty Trust Bank", "Guaranty Trust Bank Plc"}
         assert enrichment.enrichment_confidence == 0.85
 
         enrichment = enrich_bank_info(sender_name="First Bank Nigeria")

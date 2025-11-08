@@ -18,24 +18,30 @@ def _add_log_level(
 
 
 def configure_logging(env: str = "development") -> None:
-    """Configure structlog for JSON structured logs to stdout."""
+    """Configure structlog for clean, readable console logs to stdout."""
     timestamper = structlog.processors.TimeStamper(fmt="iso", utc=True)
 
     shared_processors = [
         structlog.contextvars.merge_contextvars,
         _add_log_level,
         timestamper,
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
     ]
 
     # Configure standard logging to go through structlog
     logging.basicConfig(format="%(message)s", stream=sys.stdout, level=logging.INFO)
 
+    # Use ConsoleRenderer for human-readable output instead of JSON
+    # This provides clean, colored output perfect for reading logs in console
     structlog.configure(
         processors=[
             structlog.stdlib.filter_by_level,
             *shared_processors,
-            structlog.processors.format_exc_info,
-            structlog.processors.JSONRenderer(),
+            structlog.dev.ConsoleRenderer(
+                colors=True,
+                exception_formatter=structlog.dev.plain_traceback,
+            ),
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),

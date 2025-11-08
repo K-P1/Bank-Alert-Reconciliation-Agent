@@ -128,17 +128,13 @@ class RetentionPolicy:
                     "dry_run": False,
                 }
 
-            # Dry run - count what would be deleted
+            # Dry run - count what would be deleted using repository
             from datetime import timedelta
 
             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-            from sqlalchemy import select, func
-            from app.db.models.log import Log
-
-            result = await uow.logs.session.execute(
-                select(func.count(Log.id)).where(Log.timestamp < cutoff)
-            )
-            count = result.scalar() or 0
+            
+            # Use repository count method with comparison operator
+            count = await uow.logs.count(timestamp__lt=cutoff)
 
             return {
                 "action": "cleanup_logs",

@@ -58,15 +58,17 @@ class HybridParser:
         Returns:
             ParsedEmail or None if filtered out
         """
+        logger.info(f"[PARSER] Starting parse for email: {email.message_id}")
         parsing_errors: list[str] = []
 
         # Step 1: Pre-filtering
+        logger.debug(f"[PARSER] Step 1: Applying pre-filter rules...")
         filter_result = self.filter.filter_email(email)
         if not filter_result.passed:
-            logger.debug(f"Email filtered out: {filter_result.reason}")
+            logger.info(f"[PARSER] ✗ Email filtered out: {filter_result.reason}")
             return None
 
-        logger.info(f"Email passed pre-filter: {email.message_id}")
+        logger.debug(f"[PARSER] ✓ Email passed pre-filter")
 
         # Get body text (prefer plain over HTML)
         body = email.body_plain or email.body_html or ""
@@ -76,6 +78,7 @@ class HybridParser:
         classification_confidence = 0.5
 
         if self.llm_client:
+            logger.debug(f"[PARSER] Step 2: Running LLM classification...")
             try:
                 classification_result = await self.llm_client.classify_email(
                     email.subject, body
@@ -84,12 +87,12 @@ class HybridParser:
                 classification_confidence = classification_result.confidence
 
                 logger.info(
-                    f"LLM classification: is_alert={is_alert}, "
+                    f"[PARSER] LLM classification: is_alert={is_alert}, "
                     f"confidence={classification_confidence:.2f}"
                 )
 
                 if not is_alert:
-                    logger.info(f"LLM classified as non-alert: {email.message_id}")
+                    logger.info(f"[PARSER] ✗ LLM classified as non-alert")
                     # Still create parsed email but mark as not alert
                     return self._create_parsed_email(
                         email=email,
@@ -101,8 +104,10 @@ class HybridParser:
                     )
 
             except Exception as e:
-                logger.error(f"LLM classification failed: {e}")
+                logger.error(f"[PARSER] LLM classification failed: {e}")
                 parsing_errors.append(f"LLM classification error: {str(e)}")
+        else:
+            logger.debug(f"[PARSER] Step 2: LLM disabled, skipping classification")
 
         # Step 3: Extraction (LLM first, then regex fallback)
         from app.emails.models import LLMExtractionResult, RegexExtractionResult
@@ -112,6 +117,7 @@ class HybridParser:
 
         # Try LLM extraction first
         if self.llm_client and is_alert:
+            logger.debug(f"[PARSER] Step 3a: Attempting LLM field extraction...")
             try:
                 extraction_result = await self.llm_client.extract_fields(
                     email.subject, body
@@ -120,20 +126,21 @@ class HybridParser:
                 if extraction_result.fields_extracted >= 2:  # At least 2 fields
                     parsing_method = "llm"
                     logger.info(
-                        f"LLM extraction successful: "
+                        f"[PARSER] ✓ LLM extraction successful: "
                         f"{extraction_result.fields_extracted} fields, "
                         f"confidence={extraction_result.confidence:.2f}"
                     )
                 else:
-                    logger.info("LLM extraction insufficient, falling back to regex")
+                    logger.debug(f"[PARSER] LLM extraction insufficient (<2 fields), falling back to regex")
                     extraction_result = None
 
             except Exception as e:
-                logger.error(f"LLM extraction failed: {e}")
+                logger.error(f"[PARSER] LLM extraction failed: {e}")
                 parsing_errors.append(f"LLM extraction error: {str(e)}")
 
         # Fallback to regex if needed
         if extraction_result is None and self.config.parser.fallback_to_regex:
+            logger.debug(f"[PARSER] Step 3b: Using regex extraction...")
             try:
                 extraction_result = self.regex_extractor.extract_fields(
                     email.subject, body
@@ -141,13 +148,13 @@ class HybridParser:
                 parsing_method = "regex" if parsing_method == "regex" else "hybrid"
 
                 logger.info(
-                    f"Regex extraction: "
+                    f"[PARSER] ✓ Regex extraction: "
                     f"{extraction_result.fields_extracted} fields, "
                     f"confidence={extraction_result.confidence:.2f}"
                 )
 
             except Exception as e:
-                logger.error(f"Regex extraction failed: {e}")
+                logger.error(f"[PARSER] Regex extraction failed: {e}")
                 parsing_errors.append(f"Regex extraction error: {str(e)}")
 
         # Check if required fields are present
@@ -182,15 +189,19 @@ class HybridParser:
         else:
             final_confidence = classification_confidence * 0.3
 
+        logger.debug(
+            f"[PARSER] Final confidence calculated: {final_confidence:.2f} "
+            f"(method: {parsing_method})"
+        )
+
         # Log low confidence cases
         if (
             self.config.parser.log_low_confidence
             and final_confidence < self.config.parser.min_confidence_threshold
         ):
             logger.warning(
-                f"Low confidence parse: {email.message_id}, "
-                f"confidence={final_confidence:.2f}, "
-                f"method={parsing_method}"
+                f"[PARSER] ⚠ Low confidence parse | Email: {email.message_id} | "
+                f"Confidence: {final_confidence:.2f} | Method: {parsing_method}"
             )
 
         # Create parsed email
@@ -202,6 +213,12 @@ class HybridParser:
             confidence=final_confidence,
             extraction_result=extraction_result,
             parsing_errors=parsing_errors,
+        )
+
+        logger.info(
+            f"[PARSER] ✓ Parse complete | Email: {email.message_id} | "
+            f"Method: {parsing_method} | Confidence: {final_confidence:.2f} | "
+            f"Is alert: {is_alert} | Fields extracted: {extraction_result.fields_extracted if extraction_result else 0}"
         )
 
         return parsed_email

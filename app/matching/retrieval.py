@@ -7,11 +7,10 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.transaction import Transaction
-from app.db.models.match import Match
+from app.db.repositories.transaction_repository import TransactionRepository
 from app.matching.config import MatchingConfig
 from app.normalization.models import NormalizedEmail, NormalizedTransaction
 
@@ -35,6 +34,9 @@ class CandidateRetriever:
         self.session = session
         self.config = config or MatchingConfig()
         self.retrieval_config = self.config.candidate_retrieval
+        
+        # Initialize repository
+        self.transaction_repo = TransactionRepository(Transaction, session)
 
     async def get_candidates_for_email(
         self,
@@ -53,7 +55,7 @@ class CandidateRetriever:
         """
         if email.amount is None:
             logger.warning(
-                f"Email {email.message_id} has no amount, cannot retrieve candidates"
+                f"[RETRIEVAL] Email {email.message_id} has no amount - cannot retrieve candidates"
             )
             return []
 
@@ -61,20 +63,27 @@ class CandidateRetriever:
         if time_window_hours is None:
             time_window_hours = self.config.time_window.default_hours
 
-        # Build query
-        query = self._build_candidate_query(email, time_window_hours)
+        logger.info(
+            f"[RETRIEVAL] Searching for candidates | "
+            f"Email: {email.message_id} | "
+            f"Amount: {email.amount} {email.currency} | "
+            f"Time window: {time_window_hours}h | "
+            f"Tolerance: {self.retrieval_config.amount_tolerance_percent}%"
+        )
 
-        # Execute query
-        result = await self.session.execute(query)
-        transactions = result.scalars().all()
+        # Use repository to get candidates
+        transactions = await self.transaction_repo.get_candidates_for_matching(
+            amount=email.amount,
+            currency=email.currency,
+            timestamp=email.timestamp,
+            time_window_hours=time_window_hours,
+            amount_tolerance_percent=self.retrieval_config.amount_tolerance_percent,
+            require_same_currency=self.retrieval_config.require_same_currency,
+            exclude_already_matched=self.retrieval_config.exclude_already_matched,
+        )
 
         logger.info(
-            f"Retrieved {len(transactions)} candidates for email {email.message_id}",
-            extra={
-                "email_amount": str(email.amount),
-                "currency": email.currency,
-                "time_window_hours": time_window_hours,
-            },
+            f"[RETRIEVAL] Database query returned {len(transactions)} candidate transactions"
         )
 
         # Convert to NormalizedTransaction
@@ -84,79 +93,29 @@ class CandidateRetriever:
                 normalized = self._convert_to_normalized(txn)
                 candidates.append(normalized)
             except Exception as e:
-                logger.error(f"Failed to convert transaction {txn.id}: {e}")
+                logger.error(f"[RETRIEVAL] Failed to convert transaction {txn.id}: {e}")
                 continue
 
-        # Apply additional filtering
+        logger.debug(f"[RETRIEVAL] Converted {len(candidates)} transactions to normalized format")
+
+        # Apply additional filtering (post-process for extra safety)
+        candidates_before_filter = len(candidates)
         candidates = self._post_filter_candidates(email, candidates)
+        
+        if candidates_before_filter != len(candidates):
+            logger.info(
+                f"[RETRIEVAL] Post-filtering removed {candidates_before_filter - len(candidates)} candidates"
+            )
 
         # Limit candidates
         if len(candidates) > self.retrieval_config.max_candidates:
             logger.warning(
-                f"Limiting candidates from {len(candidates)} to {self.retrieval_config.max_candidates}"
+                f"[RETRIEVAL] Limiting candidates from {len(candidates)} to {self.retrieval_config.max_candidates}"
             )
             candidates = candidates[: self.retrieval_config.max_candidates]
 
+        logger.info(f"[RETRIEVAL] ✓ Returning {len(candidates)} final candidates")
         return candidates
-
-    def _build_candidate_query(self, email: NormalizedEmail, time_window_hours: int):
-        """
-        Build SQL query for candidate retrieval.
-
-        Args:
-            email: Normalized email
-            time_window_hours: Time window in hours
-
-        Returns:
-            SQLAlchemy query
-        """
-        query = select(Transaction)
-
-        conditions = []
-
-        # Amount filter (with tolerance)
-        if email.amount is not None:
-            tolerance = self.retrieval_config.amount_tolerance_percent
-            min_amount = email.amount * Decimal(str(1 - tolerance))
-            max_amount = email.amount * Decimal(str(1 + tolerance))
-
-            conditions.append(Transaction.amount >= float(min_amount))
-            conditions.append(Transaction.amount <= float(max_amount))
-
-        # Currency filter
-        if self.retrieval_config.require_same_currency and email.currency:
-            conditions.append(Transaction.currency == email.currency)
-
-        # Time window filter
-        if email.timestamp:
-            start_time = email.timestamp - timedelta(hours=time_window_hours)
-            end_time = email.timestamp + timedelta(hours=time_window_hours)
-
-            conditions.append(Transaction.transaction_timestamp >= start_time)
-            conditions.append(Transaction.transaction_timestamp <= end_time)
-
-        # Exclude already matched transactions (optional)
-        if self.retrieval_config.exclude_already_matched:
-            # Subquery to find already matched transaction IDs
-            matched_subquery = (
-                select(Match.transaction_id)
-                .where(Match.matched.is_(True))
-                .where(Match.transaction_id.isnot(None))
-            )
-            conditions.append(Transaction.id.notin_(matched_subquery))
-
-        # Apply all conditions
-        if conditions:
-            query = query.where(and_(*conditions))
-
-        # Order by timestamp (closest first) and amount match
-        if email.timestamp:
-            # Note: SQLite doesn't support ABS on datetime, so we'll sort in Python
-            query = query.order_by(Transaction.transaction_timestamp)
-        else:
-            query = query.order_by(Transaction.created_at.desc())
-
-        return query
 
     def _convert_to_normalized(self, transaction: Transaction) -> NormalizedTransaction:
         """
@@ -197,6 +156,7 @@ class CandidateRetriever:
             Filtered candidates
         """
         filtered = []
+        filtered_out_count = 0
 
         for candidate in candidates:
             # Skip if amount mismatch (shouldn't happen, but double-check)
@@ -207,13 +167,10 @@ class CandidateRetriever:
 
                 if diff > max_diff:
                     logger.debug(
-                        f"Filtering out transaction {candidate.transaction_id}: amount mismatch",
-                        extra={
-                            "email_amount": str(email.amount),
-                            "txn_amount": str(candidate.amount),
-                            "difference": str(diff),
-                        },
+                        f"[RETRIEVAL] Filtering transaction {candidate.transaction_id}: "
+                        f"amount mismatch (email: {email.amount}, txn: {candidate.amount})"
                     )
+                    filtered_out_count += 1
                     continue
 
             # Skip if currency mismatch (if required)
@@ -224,15 +181,16 @@ class CandidateRetriever:
                     and email.currency != candidate.currency
                 ):
                     logger.debug(
-                        f"Filtering out transaction {candidate.transaction_id}: currency mismatch",
-                        extra={
-                            "email_currency": email.currency,
-                            "txn_currency": candidate.currency,
-                        },
+                        f"[RETRIEVAL] Filtering transaction {candidate.transaction_id}: "
+                        f"currency mismatch (email: {email.currency}, txn: {candidate.currency})"
                     )
+                    filtered_out_count += 1
                     continue
 
             filtered.append(candidate)
+
+        if filtered_out_count > 0:
+            logger.debug(f"[RETRIEVAL] Post-filter removed {filtered_out_count} candidates")
 
         return filtered
 
@@ -255,50 +213,44 @@ class CandidateRetriever:
             logger.warning(f"Email {email.message_id} has no composite key")
             return []
 
-        # Build query based on composite key components
-        query = select(Transaction)
+        # Extract parameters from composite key
+        amount = None
+        currency = None
+        timestamp = None
 
-        conditions = []
-
-        # Amount (from composite key)
         if email.composite_key.amount_str:
             amount = Decimal(email.composite_key.amount_str)
-            tolerance = self.retrieval_config.amount_tolerance_percent
-            min_amount = amount * Decimal(str(1 - tolerance))
-            max_amount = amount * Decimal(str(1 + tolerance))
 
-            conditions.append(Transaction.amount >= float(min_amount))
-            conditions.append(Transaction.amount <= float(max_amount))
-
-        # Currency
         if email.composite_key.currency:
-            conditions.append(Transaction.currency == email.composite_key.currency)
+            currency = email.composite_key.currency
 
-        # Date bucket (extract date from timestamp)
-        # Note: This requires parsing the date_bucket format (YYYY-MM-DD-HH)
+        # Parse date bucket (YYYY-MM-DD-HH format)
         if email.composite_key.date_bucket:
-            # Parse date bucket
             try:
                 from datetime import datetime
 
                 date_parts = email.composite_key.date_bucket.split("-")
                 if len(date_parts) == 4:
                     year, month, day, hour = map(int, date_parts)
-                    bucket_start = datetime(year, month, day, hour)
-                    bucket_end = bucket_start + timedelta(hours=1)
-
-                    conditions.append(Transaction.transaction_timestamp >= bucket_start)
-                    conditions.append(Transaction.transaction_timestamp < bucket_end)
+                    timestamp = datetime(year, month, day, hour)
             except Exception as e:
                 logger.error(f"Failed to parse date bucket: {e}")
 
-        # Apply conditions
-        if conditions:
-            query = query.where(and_(*conditions))
+        # If we don't have enough information, return empty
+        if not amount:
+            logger.warning(f"Composite key has no amount for email {email.message_id}")
+            return []
 
-        # Execute
-        result = await self.session.execute(query)
-        transactions = result.scalars().all()
+        # Use repository with 1-hour window for composite key (tighter than normal)
+        transactions = await self.transaction_repo.get_candidates_for_matching(
+            amount=amount,
+            currency=currency,
+            timestamp=timestamp,
+            time_window_hours=1,  # Tighter window for composite key matching
+            amount_tolerance_percent=self.retrieval_config.amount_tolerance_percent,
+            require_same_currency=self.retrieval_config.require_same_currency,
+            exclude_already_matched=self.retrieval_config.exclude_already_matched,
+        )
 
         # Convert to normalized
         candidates = []
