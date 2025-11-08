@@ -23,3 +23,11 @@ logs/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# personal scripts
+wipe.py
+run_checks.bat
+run_server.bat
+
+# personal files
+docs/
