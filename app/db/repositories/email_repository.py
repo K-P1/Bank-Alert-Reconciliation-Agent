@@ -112,11 +112,11 @@ class EmailRepository(BaseRepository[Email]):
             List of unmatched emails
         """
         from app.db.models.match import Match
-        
+
         query = (
             select(self.model)
             .outerjoin(Match, self.model.id == Match.email_id)
-            .where(Match.id.is_(None)) # Only emails without a match record
+            .where(Match.id.is_(None))  # Only emails without a match record
             .order_by(self.model.created_at.desc())
         )
         if limit:

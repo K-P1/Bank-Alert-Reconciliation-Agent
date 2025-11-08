@@ -62,13 +62,13 @@ class HybridParser:
         parsing_errors: list[str] = []
 
         # Step 1: Pre-filtering
-        logger.debug(f"[PARSER] Step 1: Applying pre-filter rules...")
+        logger.debug("[PARSER] Step 1: Applying pre-filter rules...")
         filter_result = self.filter.filter_email(email)
         if not filter_result.passed:
             logger.info(f"[PARSER] ✗ Email filtered out: {filter_result.reason}")
             return None
 
-        logger.debug(f"[PARSER] ✓ Email passed pre-filter")
+        logger.debug("[PARSER] ✓ Email passed pre-filter")
 
         # Get body text (prefer plain over HTML)
         body = email.body_plain or email.body_html or ""
@@ -78,7 +78,7 @@ class HybridParser:
         classification_confidence = 0.5
 
         if self.llm_client:
-            logger.debug(f"[PARSER] Step 2: Running LLM classification...")
+            logger.debug("[PARSER] Step 2: Running LLM classification...")
             try:
                 classification_result = await self.llm_client.classify_email(
                     email.subject, body
@@ -92,7 +92,7 @@ class HybridParser:
                 )
 
                 if not is_alert:
-                    logger.info(f"[PARSER] ✗ LLM classified as non-alert")
+                    logger.info("[PARSER] ✗ LLM classified as non-alert")
                     # Still create parsed email but mark as not alert
                     return self._create_parsed_email(
                         email=email,
@@ -107,7 +107,7 @@ class HybridParser:
                 logger.error(f"[PARSER] LLM classification failed: {e}")
                 parsing_errors.append(f"LLM classification error: {str(e)}")
         else:
-            logger.debug(f"[PARSER] Step 2: LLM disabled, skipping classification")
+            logger.debug("[PARSER] Step 2: LLM disabled, skipping classification")
 
         # Step 3: Extraction (LLM first, then regex fallback)
         from app.emails.models import LLMExtractionResult, RegexExtractionResult
@@ -117,7 +117,7 @@ class HybridParser:
 
         # Try LLM extraction first
         if self.llm_client and is_alert:
-            logger.debug(f"[PARSER] Step 3a: Attempting LLM field extraction...")
+            logger.debug("[PARSER] Step 3a: Attempting LLM field extraction...")
             try:
                 extraction_result = await self.llm_client.extract_fields(
                     email.subject, body
@@ -131,7 +131,9 @@ class HybridParser:
                         f"confidence={extraction_result.confidence:.2f}"
                     )
                 else:
-                    logger.debug(f"[PARSER] LLM extraction insufficient (<2 fields), falling back to regex")
+                    logger.debug(
+                        "[PARSER] LLM extraction insufficient (<2 fields), falling back to regex"
+                    )
                     extraction_result = None
 
             except Exception as e:
@@ -140,7 +142,7 @@ class HybridParser:
 
         # Fallback to regex if needed
         if extraction_result is None and self.config.parser.fallback_to_regex:
-            logger.debug(f"[PARSER] Step 3b: Using regex extraction...")
+            logger.debug("[PARSER] Step 3b: Using regex extraction...")
             try:
                 extraction_result = self.regex_extractor.extract_fields(
                     email.subject, body

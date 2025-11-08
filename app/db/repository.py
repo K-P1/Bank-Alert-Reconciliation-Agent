@@ -99,7 +99,7 @@ class BaseRepository(Generic[ModelType]):
     async def filter(self, **filters) -> List[ModelType]:
         """
         Filter records by field values.
-        
+
         Supports comparison operators using double underscore syntax:
         - field__lt: less than
         - field__lte: less than or equal
@@ -113,11 +113,11 @@ class BaseRepository(Generic[ModelType]):
 
         Returns:
             List of matching model instances
-            
+
         Examples:
             # Get transactions with amount > 100
             await repo.filter(amount__gt=100)
-            
+
             # Get logs before a certain timestamp
             await repo.filter(timestamp__lt=cutoff_date)
         """
@@ -212,11 +212,11 @@ class BaseRepository(Generic[ModelType]):
             Number of records deleted
         """
         query = delete(self.model)
-        
+
         # Apply filters if provided
         if filters:
             query = self._apply_filters_to_delete(query, filters)
-        
+
         result = await self.session.execute(query)
         await self.session.flush()
         return result.rowcount or 0  # type: ignore
@@ -264,7 +264,7 @@ class BaseRepository(Generic[ModelType]):
     async def count(self, **filters) -> int:
         """
         Count records matching the given filters.
-        
+
         Supports comparison operators using double underscore syntax:
         - field__lt: less than
         - field__lte: less than or equal
@@ -278,7 +278,7 @@ class BaseRepository(Generic[ModelType]):
 
         Returns:
             Number of matching records
-            
+
         Examples:
             # Count logs older than cutoff date
             await repo.count(timestamp__lt=cutoff_date)

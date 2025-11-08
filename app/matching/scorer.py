@@ -133,7 +133,11 @@ class MatchScorer:
                 )
                 continue
 
-        avg_score = sum(c.total_score for c in candidates) / len(candidates) if candidates else 0
+        avg_score = (
+            sum(c.total_score for c in candidates) / len(candidates)
+            if candidates
+            else 0
+        )
         logger.info(
             f"[SCORER] ✓ Scored {len(candidates)}/{len(transactions)} candidates | "
             f"Average score: {avg_score:.4f}"
@@ -153,7 +157,7 @@ class MatchScorer:
         """
         if not candidates:
             return candidates
-            
+
         # Sort by total score (descending)
         ranked = sorted(candidates, key=lambda c: c.total_score, reverse=True)
 
@@ -263,18 +267,20 @@ class MatchScorer:
         confidence = best_candidate.total_score
 
         if confidence >= thresholds.auto_match:
-            status = "auto_matched"
+            status: Literal[
+                "auto_matched", "needs_review", "rejected", "no_candidates"
+            ] = "auto_matched"
         elif confidence >= thresholds.needs_review:
             status = "needs_review"
         else:
             status = "rejected"
-            
+
         logger.info(
             f"[SCORER] Match decision: {status} | "
             f"Confidence: {confidence:.4f} | "
             f"Thresholds: auto={thresholds.auto_match:.2f}, review={thresholds.needs_review:.2f}"
         )
-        
+
         return status
 
     def create_match_result(

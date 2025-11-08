@@ -167,7 +167,7 @@ class TransactionRepository(BaseRepository[Transaction]):
             List of candidate transactions
         """
         from app.db.models.match import Match
-        
+
         query = select(self.model)
         conditions = []
 
@@ -209,4 +209,3 @@ class TransactionRepository(BaseRepository[Transaction]):
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
-

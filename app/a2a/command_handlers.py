@@ -20,7 +20,7 @@ from app.db.repositories.transaction_repository import TransactionRepository
 from app.db.models.email import Email
 from app.db.models.match import Match
 from app.db.models.transaction import Transaction
-from app.matching.engine import match_unmatched, MatchingEngine
+from app.matching.engine import match_unmatched
 from app.matching.models import BatchMatchResult
 
 
@@ -195,25 +195,26 @@ class CommandHandlers:
         try:
             # Get matched email IDs
             matched_email_ids = await self.match_repo.get_matched_email_ids()
-            
+
             # Build query for unmatched emails
             from sqlalchemy import select, desc
+
             query = select(self.email_repo.model)
-            
+
             # Filter out matched emails
             if matched_email_ids:
                 query = query.where(~self.email_repo.model.id.in_(matched_email_ids))
-            
+
             # Order and limit
             query = query.order_by(desc(self.email_repo.model.created_at)).limit(limit)
-            
+
             # Execute query
             result = await self.email_repo.session.execute(query)
             unmatched_emails = list(result.scalars().all())
 
             if not unmatched_emails:
                 summary = "✅ Great! No unmatched emails found."
-                artifacts = []
+                artifacts: List[Dict[str, Any]] = []
             else:
                 summary = f"📋 **Unmatched Emails** (Showing {len(unmatched_emails)} of {len(unmatched_emails)})\n\n"
 

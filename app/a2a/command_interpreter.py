@@ -23,7 +23,9 @@ class CommandMatch:
     """Result of a command interpretation attempt."""
 
     command_name: str
-    handler: Optional[Callable]  # Optional - not used since handlers instantiated with db session
+    handler: Optional[
+        Callable
+    ]  # Optional - not used since handlers instantiated with db session
     params: Dict[str, Any]
     confidence: float  # 0.0 to 1.0
     matched_pattern: str
@@ -35,7 +37,9 @@ class CommandDefinition:
 
     name: str
     patterns: List[str]  # Regex patterns
-    handler: Optional[Callable]  # Optional because handlers are set at runtime with db session
+    handler: Optional[
+        Callable
+    ]  # Optional because handlers are set at runtime with db session
     description: str
     examples: List[str]
     param_extractors: Optional[Dict[str, Callable]] = None
@@ -61,7 +65,9 @@ class CommandInterpreter:
         self,
         name: str,
         patterns: List[str],
-        handler: Optional[Callable],  # Optional - handlers set at runtime with db session
+        handler: Optional[
+            Callable
+        ],  # Optional - handlers set at runtime with db session
         description: str,
         examples: List[str],
         param_extractors: Optional[Dict[str, Callable]] = None,
@@ -144,11 +150,11 @@ class CommandInterpreter:
 
         # No match found - return help command
         logger.info("command.no_match", message=message)
-        
+
         # Ensure help command exists before returning it
         if "help" not in self.commands:
             raise ValueError("Help command must be registered")
-        
+
         return CommandMatch(
             command_name="help",
             handler=self.commands["help"].handler,
@@ -190,20 +196,26 @@ class CommandInterpreter:
             # Command title
             lines.append(f"**/{cmd_name.replace('_', ' ')}**")
             lines.append(f"  {cmd_def.description}")
-            
+
             # Show parameters if any
             if cmd_def.param_extractors:
                 lines.append("  Parameters:")
                 for param_name in cmd_def.param_extractors.keys():
                     if param_name == "limit":
-                        lines.append(f"    • {param_name}: Number of items to process (e.g., '50 emails', 'limit 20')")
+                        lines.append(
+                            f"    • {param_name}: Number of items to process (e.g., '50 emails', 'limit 20')"
+                        )
                     elif param_name == "days":
-                        lines.append(f"    • {param_name}: Number of days to look back (e.g., 'last 14 days', 'for 7 days')")
+                        lines.append(
+                            f"    • {param_name}: Number of days to look back (e.g., 'last 14 days', 'for 7 days')"
+                        )
                     elif param_name == "rematch":
-                        lines.append(f"    • {param_name}: Force re-matching of already matched items (mention 'rematch' or 'force')")
+                        lines.append(
+                            f"    • {param_name}: Force re-matching of already matched items (mention 'rematch' or 'force')"
+                        )
                     else:
                         lines.append(f"    • {param_name}: Optional parameter")
-            
+
             # Show examples
             lines.append("  Examples:")
             for example in cmd_def.examples:

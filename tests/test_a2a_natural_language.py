@@ -32,26 +32,29 @@ class TestNaturalLanguageCommands:
                 }
             },
         }
-        
+
         resp = client.post("/a2a/agent/BARA", json=payload)
         assert resp.status_code == 200
-        
+
         body = resp.json()
         assert body["jsonrpc"] == "2.0"
         assert body["id"] == "test-help-1"
         assert "result" in body
-        
+
         # Check Telex Message format
         result = body["result"]
         assert result["kind"] == "message"
         assert result["role"] == "agent"
         assert len(result["parts"]) > 0
-        
+
         # First part should contain help text
         first_part = result["parts"][0]
         assert first_part["kind"] == "text"
         assert "BARA" in first_part["text"]
-        assert "Available Commands" in first_part["text"] or "commands" in first_part["text"].lower()
+        assert (
+            "Available Commands" in first_part["text"]
+            or "commands" in first_part["text"].lower()
+        )
 
     def test_unrecognized_falls_back_to_help(self):
         """Test that unrecognized commands return help."""
@@ -67,18 +70,18 @@ class TestNaturalLanguageCommands:
                 }
             },
         }
-        
+
         resp = client.post("/a2a/agent/BARA", json=payload)
         assert resp.status_code == 200
-        
+
         body = resp.json()
         assert "result" in body
-        
+
         # Check it returns help in message format
         result = body["result"]
         assert result["kind"] == "message"
         assert len(result["parts"]) > 0
-        
+
         # Check that data part contains help indication
         if len(result["parts"]) > 1:
             data_part = result["parts"][1]
@@ -93,7 +96,7 @@ class TestNaturalLanguageCommands:
             "process alerts",
             "can you reconcile?",
         ]
-        
+
         for phrase in phrases:
             payload = {
                 "jsonrpc": "2.0",
@@ -107,18 +110,18 @@ class TestNaturalLanguageCommands:
                     }
                 },
             }
-            
+
             resp = client.post("/a2a/agent/BARA", json=payload)
             assert resp.status_code == 200
-            
+
             body = resp.json()
             assert "result" in body
-            
+
             # Should return Message format
             result = body["result"]
             assert result["kind"] == "message"
             assert result["role"] == "agent"
-            
+
             # Check metadata for status
             if "metadata" in result:
                 metadata = result["metadata"]
@@ -138,24 +141,26 @@ class TestNaturalLanguageCommands:
                 }
             },
         }
-        
+
         resp = client.post("/a2a/agent/BARA", json=payload)
         assert resp.status_code == 200
-        
+
         body = resp.json()
         assert "result" in body
-        
+
         # Check Message format
         result = body["result"]
         assert result["kind"] == "message"
         assert result["role"] == "agent"
         assert len(result["parts"]) > 0
-        
+
         # First part should contain summary text
         first_part = result["parts"][0]
         assert first_part["kind"] == "text"
-        assert "Summary" in first_part["text"] or "summary" in first_part["text"].lower()
-        
+        assert (
+            "Summary" in first_part["text"] or "summary" in first_part["text"].lower()
+        )
+
         # Check metadata for status
         assert result.get("metadata", {}).get("status") == "success"
 
@@ -173,18 +178,18 @@ class TestNaturalLanguageCommands:
                 }
             },
         }
-        
+
         resp = client.post("/a2a/agent/BARA", json=payload)
         assert resp.status_code == 200
-        
+
         body = resp.json()
         assert "result" in body
-        
+
         # Check Message format
         result = body["result"]
         assert result["kind"] == "message"
         assert result["role"] == "agent"
-        
+
         # Check metadata for status
         assert result.get("metadata", {}).get("status") == "success"
 
@@ -202,18 +207,18 @@ class TestNaturalLanguageCommands:
                 }
             },
         }
-        
+
         resp = client.post("/a2a/agent/BARA", json=payload)
         assert resp.status_code == 200
-        
+
         body = resp.json()
         assert "result" in body
-        
+
         # Check Message format
         result = body["result"]
         assert result["kind"] == "message"
         assert result["role"] == "agent"
-        
+
         # Check metadata for status
         assert result.get("metadata", {}).get("status") == "success"
 
@@ -231,17 +236,17 @@ class TestNaturalLanguageCommands:
                 }
             },
         }
-        
+
         resp = client.post("/a2a/agent/BARA", json=payload)
         assert resp.status_code == 200
-        
+
         body = resp.json()
         assert "result" in body
-        
+
         # Check Message format
         result = body["result"]
         assert result["kind"] == "message"
-        
+
         # Check if limit was interpreted (in metadata)
         if "metadata" in result and "params" in result["metadata"]:
             # Limit might be extracted
@@ -257,22 +262,24 @@ class TestNaturalLanguageCommands:
                 "message": {
                     "kind": "message",
                     "role": "user",
-                    "parts": [{"kind": "text", "text": "show summary for last 14 days"}],
+                    "parts": [
+                        {"kind": "text", "text": "show summary for last 14 days"}
+                    ],
                 }
             },
         }
-        
+
         resp = client.post("/a2a/agent/BARA", json=payload)
         assert resp.status_code == 200
-        
+
         body = resp.json()
         assert "result" in body
-        
+
         # Check Message format
         result = body["result"]
         assert result["kind"] == "message"
         assert result["role"] == "agent"
-        
+
         # Check metadata for status
         assert result.get("metadata", {}).get("status") == "success"
 
@@ -285,7 +292,7 @@ class TestNaturalLanguageCommands:
             "RECONCILE NOW",
             "Show Summary",
         ]
-        
+
         for phrase in phrases:
             payload = {
                 "jsonrpc": "2.0",
@@ -299,10 +306,10 @@ class TestNaturalLanguageCommands:
                     }
                 },
             }
-            
+
             resp = client.post("/a2a/agent/BARA", json=payload)
             assert resp.status_code == 200
-            
+
             body = resp.json()
             assert "result" in body
 
@@ -320,18 +327,18 @@ class TestNaturalLanguageCommands:
                 }
             },
         }
-        
+
         resp = client.post("/a2a/agent/BARA", json=payload)
         assert resp.status_code == 200
-        
+
         body = resp.json()
         assert "result" in body
-        
+
         # Check Message format
         result = body["result"]
         assert result["kind"] == "message"
         assert "metadata" in result
-        
+
         metadata = result["metadata"]
         assert "interpreted_from" in metadata
         assert metadata["interpreted_from"] == "show summary"
@@ -346,14 +353,14 @@ class TestNaturalLanguageCommands:
             "method": "status",
             "params": {},
         }
-        
+
         resp = client.post("/a2a/agent/BARA", json=payload)
         assert resp.status_code == 200
-        
+
         body = resp.json()
         assert body["jsonrpc"] == "2.0"
         assert "result" in body
-        
+
         # Check Message format
         result = body["result"]
         assert result["kind"] == "message"
@@ -377,16 +384,16 @@ class TestResponseFormat:
                 }
             },
         }
-        
+
         resp = client.post("/a2a/agent/BARA", json=payload)
         body = resp.json()
-        
+
         # Required fields
         assert "jsonrpc" in body
         assert body["jsonrpc"] == "2.0"
         assert "id" in body
         assert body["id"] == "test-format-1"
-        
+
         # Either result or error
         assert ("result" in body) or ("error" in body)
 
@@ -404,15 +411,15 @@ class TestResponseFormat:
                 }
             },
         }
-        
+
         resp = client.post("/a2a/agent/BARA", json=payload)
         body = resp.json()
-        
+
         assert "result" in body
         result = body["result"]
         assert result["kind"] == "message"
         assert len(result["parts"]) > 0
-        
+
         # First part should be text
         first_part = result["parts"][0]
         assert first_part["kind"] == "text"
@@ -420,7 +427,10 @@ class TestResponseFormat:
         assert isinstance(text, str)
         assert len(text) > 0
         # Should contain some recognizable words
-        assert any(word in text.lower() for word in ["email", "transaction", "match", "summary"])
+        assert any(
+            word in text.lower()
+            for word in ["email", "transaction", "match", "summary"]
+        )
 
     def test_artifacts_are_structured(self):
         """Test that data parts are properly structured."""
@@ -436,18 +446,18 @@ class TestResponseFormat:
                 }
             },
         }
-        
+
         resp = client.post("/a2a/agent/BARA", json=payload)
         body = resp.json()
-        
+
         assert "result" in body
         result = body["result"]
         assert result["kind"] == "message"
         assert "parts" in result
-        
+
         parts = result["parts"]
         assert isinstance(parts, list)
-        
+
         # Check if any part is a data part
         data_parts = [p for p in parts if p.get("kind") == "data"]
         if data_parts:

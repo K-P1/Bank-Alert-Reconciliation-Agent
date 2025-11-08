@@ -20,7 +20,7 @@ def _build_sender_whitelist() -> list[str]:
             if not domain.startswith("@"):
                 domains.append(f"@{domain}")
             domains.append(domain)
-    
+
     # Remove duplicates and sort
     return sorted(set(domains))
 
@@ -45,7 +45,10 @@ class FetcherConfig(BaseModel):
         default=30, ge=5, le=120, description="IMAP connection timeout in seconds"
     )
     mock_email_count: int = Field(
-        default=10, ge=1, le=100, description="Number of mock emails to generate in dev mode"
+        default=10,
+        ge=1,
+        le=100,
+        description="Number of mock emails to generate in dev mode",
     )
 
 

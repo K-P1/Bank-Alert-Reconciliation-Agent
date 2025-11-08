@@ -2,9 +2,9 @@ import sys
 from pathlib import Path
 import pytest
 import pytest_asyncio
+import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from typing import AsyncGenerator
-from unittest import mock
 
 # Ensure project root is on sys.path so `import app` works when running pytest from root.
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,10 +12,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.db.base import Base  # noqa: E402
-from app.core.config import get_settings  # noqa: E402
 
 # Force test database URL before any app imports
-import os
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 
 
@@ -23,6 +21,7 @@ os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 def override_database_url():
     """Override DATABASE_URL environment variable for all tests."""
     import os
+
     os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
     yield
     # Cleanup after tests (optional)
@@ -47,10 +46,10 @@ _engine_initialized = False
 async def init_test_db():
     """Initialize test database engine and tables once."""
     global _test_engine, _test_session_factory, _engine_initialized
-    
+
     if _engine_initialized:
         return
-    
+
     # Force SQLite for tests
     test_db_url = "sqlite+aiosqlite:///:memory:"
 
@@ -71,11 +70,12 @@ async def init_test_db():
         class_=AsyncSession,
         expire_on_commit=False,
     )
-    
+
     _engine_initialized = True
-    
+
     # CRITICAL: Patch app.db.base to use test engine and session factory
     import app.db.base
+
     app.db.base.engine = _test_engine
     app.db.base.AsyncSessionLocal = _test_session_factory
 
@@ -100,10 +100,10 @@ async def db_session(test_db):
 async def get_test_db() -> AsyncGenerator[AsyncSession, None]:
     """Test database dependency override."""
     await init_test_db()
-    
+
     if _test_session_factory is None:
         raise RuntimeError("Test session factory not initialized")
-    
+
     async with _test_session_factory() as session:
         try:
             yield session

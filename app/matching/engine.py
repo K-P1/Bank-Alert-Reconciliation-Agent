@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,7 +53,6 @@ class MatchingEngine:
         self.scorer = MatchScorer(config)
 
         # Initialize repositories
-        from app.db.models.email import Email
         from app.db.models.match import Match
         from app.db.models.transaction import Transaction
         from app.db.repositories.transaction_repository import TransactionRepository
@@ -101,15 +99,15 @@ class MatchingEngine:
         )
 
         # Step 1: Retrieve candidates
-        logger.info(f"[MATCH] Step 1: Retrieving candidate transactions...")
+        logger.info("[MATCH] Step 1: Retrieving candidate transactions...")
         candidates_txn = await self.retriever.get_candidates_for_email(normalized_email)
 
-        logger.info(
-            f"[MATCH] Retrieved {len(candidates_txn)} candidate transactions"
-        )
+        logger.info(f"[MATCH] Retrieved {len(candidates_txn)} candidate transactions")
 
         if not candidates_txn:
-            logger.warning(f"[MATCH] No candidate transactions found - marking as 'no_candidates'")
+            logger.warning(
+                "[MATCH] No candidate transactions found - marking as 'no_candidates'"
+            )
             result = MatchResult(
                 email_id=email_db_id or 0,
                 email_message_id=normalized_email.message_id,
@@ -120,7 +118,9 @@ class MatchingEngine:
             result.add_note("No candidate transactions found within search criteria")
 
             if persist and email_db_id:
-                logger.info(f"[MATCH] Persisting 'no_candidates' result for email {email_db_id}")
+                logger.info(
+                    f"[MATCH] Persisting 'no_candidates' result for email {email_db_id}"
+                )
                 await self._persist_match_result(result)
 
             return result
@@ -132,14 +132,14 @@ class MatchingEngine:
         )
 
         # Step 3: Rank and apply tie-breaking
-        logger.info(f"[MATCH] Step 3: Ranking candidates and applying tie-breaking...")
+        logger.info("[MATCH] Step 3: Ranking candidates and applying tie-breaking...")
         ranked_candidates = self.scorer.rank_candidates(scored_candidates)
         ranked_candidates = self.scorer.apply_tie_breaking(
             ranked_candidates, normalized_email
         )
 
         # Step 4: Create match result
-        logger.info(f"[MATCH] Step 4: Creating match result with decision thresholds...")
+        logger.info("[MATCH] Step 4: Creating match result with decision thresholds...")
         result = self.scorer.create_match_result(
             normalized_email, email_db_id or 0, ranked_candidates
         )
@@ -187,29 +187,42 @@ class MatchingEngine:
         logger.info(f"[BATCH] Starting batch match for {len(emails)} emails")
 
         for i, email in enumerate(emails, 1):
-            email_db_id = email_db_ids[i-1] if email_db_ids else None
+            email_db_id = email_db_ids[i - 1] if email_db_ids else None
 
             try:
-                logger.info(f"[BATCH] Processing email {i}/{len(emails)} (ID: {email_db_id})")
+                logger.info(
+                    f"[BATCH] Processing email {i}/{len(emails)} (ID: {email_db_id})"
+                )
                 result = await self.match_email(email, email_db_id, persist)
                 batch_result.add_result(result)
-                logger.debug(f"[BATCH] Email {i}/{len(emails)} completed: {result.match_status}")
+                logger.debug(
+                    f"[BATCH] Email {i}/{len(emails)} completed: {result.match_status}"
+                )
             except Exception as e:
-                logger.error(f"[BATCH] Failed to match email {i}/{len(emails)} (ID: {email_db_id}): {e}", exc_info=True)
-                
+                logger.error(
+                    f"[BATCH] Failed to match email {i}/{len(emails)} (ID: {email_db_id}): {e}",
+                    exc_info=True,
+                )
+
                 # Update email with processing error if we have the ID
                 if email_db_id and persist:
                     try:
                         email_record = await self.email_repo.get_by_id(email_db_id)
                         if email_record:
                             email_record.processing_error = str(e)
-                            email_record.is_processed = False  # Mark as not processed due to error
+                            email_record.is_processed = (
+                                False  # Mark as not processed due to error
+                            )
                             await self.session.commit()
-                            logger.debug(f"[BATCH] Recorded processing error for email {email_db_id}")
+                            logger.debug(
+                                f"[BATCH] Recorded processing error for email {email_db_id}"
+                            )
                     except Exception as update_error:
-                        logger.error(f"[BATCH] Failed to update email error: {update_error}")
+                        logger.error(
+                            f"[BATCH] Failed to update email error: {update_error}"
+                        )
                         await self.session.rollback()
-                
+
                 # Create failed result
                 failed_result = MatchResult(
                     email_id=email_db_id or 0,
@@ -360,8 +373,10 @@ class MatchingEngine:
             result: Match result to persist
         """
         try:
-            logger.debug(f"[PERSIST] Persisting match result for email {result.email_id}")
-            
+            logger.debug(
+                f"[PERSIST] Persisting match result for email {result.email_id}"
+            )
+
             # Determine status based on match decision
             # Note: scorer returns "auto_matched", "needs_review", "rejected", "no_candidates"
             if result.match_status == "auto_matched":
@@ -374,7 +389,7 @@ class MatchingEngine:
                 status = "no_candidates"
             else:
                 status = "pending"  # Fallback for unknown states
-            
+
             # Prepare match data
             match_data = {
                 "email_id": result.email_id,
@@ -429,14 +444,18 @@ class MatchingEngine:
                 for key, value in match_data.items():
                     setattr(existing, key, value)
                 await self.session.commit()
-                logger.info(f"[PERSIST] ✓ Updated match record for email {result.email_id}")
+                logger.info(
+                    f"[PERSIST] ✓ Updated match record for email {result.email_id}"
+                )
             else:
                 # Create new
                 match = Match(**match_data)
                 self.session.add(match)
                 await self.session.commit()
-                logger.info(f"[PERSIST] ✓ Created new match record for email {result.email_id}")
-            
+                logger.info(
+                    f"[PERSIST] ✓ Created new match record for email {result.email_id}"
+                )
+
             # Mark email as processed
             email = await self.email_repo.get_by_id(result.email_id)
             if email:
@@ -445,9 +464,12 @@ class MatchingEngine:
                 logger.debug(f"[PERSIST] ✓ Marked email {result.email_id} as processed")
 
         except Exception as e:
-            logger.error(f"[PERSIST] Failed to persist match result for email {result.email_id}: {e}", exc_info=True)
+            logger.error(
+                f"[PERSIST] Failed to persist match result for email {result.email_id}: {e}",
+                exc_info=True,
+            )
             await self.session.rollback()
-            
+
             # Try to mark email with processing error
             try:
                 email = await self.email_repo.get_by_id(result.email_id)
@@ -456,9 +478,11 @@ class MatchingEngine:
                     email.is_processed = False
                     await self.session.commit()
             except Exception as error_update_failed:
-                logger.error(f"[PERSIST] Failed to update email error status: {error_update_failed}")
+                logger.error(
+                    f"[PERSIST] Failed to update email error status: {error_update_failed}"
+                )
                 await self.session.rollback()
-            
+
             raise
 
 
