@@ -27,7 +27,9 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 70)
     logger.info("🚀 Starting Bank Alert Reconciliation Agent (BARA)...")
     logger.info(f"Environment: {settings.ENV}")
-    logger.info(f"Database: {settings.DATABASE_URL.split('/')[-1] if settings.DATABASE_URL else 'Not configured'}")
+    logger.info(
+        f"Database: {settings.DATABASE_URL.split('/')[-1] if settings.DATABASE_URL else 'Not configured'}"
+    )
     logger.info("=" * 70)
 
     # Initialize email fetcher if IMAP is configured

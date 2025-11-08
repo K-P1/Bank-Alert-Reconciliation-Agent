@@ -15,7 +15,7 @@ logger = structlog.get_logger(__name__)
 def sanitize_db_url(db_url: str) -> str:
     """
     Sanitize database URL by hiding username and password.
-    
+
     Converts: postgresql+asyncpg://user:pass@localhost:5432/db
     To:       postgresql+asyncpg://***:***@localhost:5432/db
     """
@@ -57,13 +57,13 @@ async def reset_database():
     logger.warning("🔄 RESETTING DATABASE")
     logger.warning(f"📊 Target database: {sanitize_db_url(db_url)}")
     logger.warning("=" * 70)
-    
+
     await drop_tables()
     await create_tables()
-    
+
     # Dispose engine to ensure clean state
     await engine.dispose()
-    
+
     logger.info("=" * 70)
     logger.info("✅ Database reset complete")
     logger.info("=" * 70)

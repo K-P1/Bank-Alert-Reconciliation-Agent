@@ -183,7 +183,7 @@ class TransactionPoller:
             transactions = await self._fetch_transactions_with_resilience(
                 start_time, end_time
             )
-            
+
             logger.info(
                 "poll.transactions_fetched",
                 run_id=run_id,

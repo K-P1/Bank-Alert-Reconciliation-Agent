@@ -1,5 +1,4 @@
 from fastapi.testclient import TestClient
-from fastapi import Depends
 import pytest
 
 from app.main import app
@@ -20,7 +19,7 @@ def test_jsonrpc_status_ok():
     body = resp.json()
     assert body["jsonrpc"] == "2.0"
     assert body["id"] == "req-001"
-    
+
     # Check for Telex Message format
     assert "result" in body
     result = body["result"]
@@ -28,7 +27,7 @@ def test_jsonrpc_status_ok():
     assert result["role"] == "agent"
     assert "parts" in result
     assert len(result["parts"]) > 0
-    
+
     # First part should be text with status message
     first_part = result["parts"][0]
     assert first_part["kind"] == "text"
@@ -56,14 +55,14 @@ async def test_jsonrpc_message_send_empty_db(db_session):
         assert resp.status_code == 200
         body = resp.json()
         assert body["id"] == "req-002"
-        
+
         # Check for Telex Message format
         assert "result" in body
         result = body["result"]
         assert result["kind"] == "message"
         assert result["role"] == "agent"
         assert "parts" in result
-        
+
         # Check metadata has batch info
         metadata = result.get("metadata", {})
         batch = metadata.get("batch", {})
@@ -80,7 +79,7 @@ def test_jsonrpc_execute_accepts():
     assert resp.status_code == 200
     body = resp.json()
     assert body["id"] == "req-003"
-    
+
     # Check for Telex Task format
     assert "result" in body
     result = body["result"]

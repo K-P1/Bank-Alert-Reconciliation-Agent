@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -34,7 +33,7 @@ class CandidateRetriever:
         self.session = session
         self.config = config or MatchingConfig()
         self.retrieval_config = self.config.candidate_retrieval
-        
+
         # Initialize repository
         self.transaction_repo = TransactionRepository(Transaction, session)
 
@@ -96,12 +95,14 @@ class CandidateRetriever:
                 logger.error(f"[RETRIEVAL] Failed to convert transaction {txn.id}: {e}")
                 continue
 
-        logger.debug(f"[RETRIEVAL] Converted {len(candidates)} transactions to normalized format")
+        logger.debug(
+            f"[RETRIEVAL] Converted {len(candidates)} transactions to normalized format"
+        )
 
         # Apply additional filtering (post-process for extra safety)
         candidates_before_filter = len(candidates)
         candidates = self._post_filter_candidates(email, candidates)
-        
+
         if candidates_before_filter != len(candidates):
             logger.info(
                 f"[RETRIEVAL] Post-filtering removed {candidates_before_filter - len(candidates)} candidates"
@@ -190,7 +191,9 @@ class CandidateRetriever:
             filtered.append(candidate)
 
         if filtered_out_count > 0:
-            logger.debug(f"[RETRIEVAL] Post-filter removed {filtered_out_count} candidates")
+            logger.debug(
+                f"[RETRIEVAL] Post-filter removed {filtered_out_count} candidates"
+            )
 
         return filtered
 

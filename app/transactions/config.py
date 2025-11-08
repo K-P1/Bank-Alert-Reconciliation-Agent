@@ -117,10 +117,10 @@ def get_poller_config() -> PollerConfig:
     """
     # TODO: Load from database config table
     settings = get_settings()
-    
+
     # Override batch_size from environment if set
     config = PollerConfig()
-    if hasattr(settings, 'POLLER_BATCH_SIZE'):
+    if hasattr(settings, "POLLER_BATCH_SIZE"):
         config.batch_size = settings.POLLER_BATCH_SIZE
-    
+
     return config

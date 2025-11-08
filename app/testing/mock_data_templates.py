@@ -6,7 +6,7 @@ and MockEmailGenerator to ensure consistency and high match rates.
 """
 
 import random
-from typing import Dict, List, Any, Literal
+from typing import Dict, Any
 
 
 # Transaction templates for realistic data generation
@@ -134,10 +134,10 @@ BANK_DETAILS = {
 def generate_transaction_description(template: Dict[str, Any]) -> tuple[str, str]:
     """
     Generate a transaction description from a template.
-    
+
     Args:
         template: Transaction template with description pattern and data
-        
+
     Returns:
         Tuple of (formatted_description, detail_value)
     """
@@ -174,10 +174,10 @@ def generate_transaction_description(template: Dict[str, Any]) -> tuple[str, str
 def generate_realistic_amount(description: str) -> float:
     """
     Generate a realistic transaction amount based on description.
-    
+
     Args:
         description: Transaction description
-        
+
     Returns:
         Transaction amount in NGN
     """
@@ -196,11 +196,11 @@ def generate_realistic_amount(description: str) -> float:
 def generate_reference(bank: str, timestamp) -> str:
     """
     Generate a realistic bank reference code.
-    
+
     Args:
         bank: Bank identifier (e.g., 'GTB', 'Access')
         timestamp: Transaction timestamp
-        
+
     Returns:
         Reference code string
     """
@@ -211,7 +211,7 @@ def generate_reference(bank: str, timestamp) -> str:
 def generate_account_number() -> str:
     """
     Generate a masked account number.
-    
+
     Returns:
         Masked account string (e.g., '****1234')
     """
@@ -221,7 +221,7 @@ def generate_account_number() -> str:
 def generate_balance() -> float:
     """
     Generate a realistic account balance.
-    
+
     Returns:
         Balance amount in NGN
     """

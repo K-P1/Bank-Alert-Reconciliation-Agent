@@ -15,6 +15,7 @@ from app.normalization.models import (
     CompositeKey,
 )
 from app.emails.models import ParsedEmail
+from app.normalization.banks import BANK_MAPPINGS
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +31,6 @@ CURRENCY_SYMBOLS = {
     "€": "EUR",
     "¥": "JPY",
 }
-
-from app.normalization.banks import BANK_MAPPINGS
 
 
 # ============================================================================
@@ -452,36 +451,44 @@ def normalize_email(parsed_email: ParsedEmail) -> NormalizedEmail:
     Returns:
         NormalizedEmail with normalized and enriched data
     """
-    logger.info(f"[NORMALIZE] Starting normalization for email: {parsed_email.message_id}")
-    
+    logger.info(
+        f"[NORMALIZE] Starting normalization for email: {parsed_email.message_id}"
+    )
+
     # Normalize amount and currency
     normalized_amount = normalize_amount(parsed_email.amount)
     normalized_currency = normalize_currency(parsed_email.currency)
-    
+
     if normalized_amount:
-        logger.debug(f"[NORMALIZE] Amount: {parsed_email.amount} → {normalized_amount} {normalized_currency}")
+        logger.debug(
+            f"[NORMALIZE] Amount: {parsed_email.amount} → {normalized_amount} {normalized_currency}"
+        )
     else:
         logger.warning(f"[NORMALIZE] Failed to normalize amount: {parsed_email.amount}")
 
     # Normalize timestamp
     normalized_timestamp = normalize_timestamp(parsed_email.email_timestamp)
     normalized_received_at = normalize_timestamp(parsed_email.received_at)
-    
+
     if normalized_timestamp:
-        logger.debug(f"[NORMALIZE] Timestamp normalized: {parsed_email.email_timestamp} → {normalized_timestamp}")
+        logger.debug(
+            f"[NORMALIZE] Timestamp normalized: {parsed_email.email_timestamp} → {normalized_timestamp}"
+        )
     else:
-        logger.warning(f"[NORMALIZE] Failed to normalize timestamp: {parsed_email.email_timestamp}")
+        logger.warning(
+            f"[NORMALIZE] Failed to normalize timestamp: {parsed_email.email_timestamp}"
+        )
 
     # Normalize reference
     normalized_ref = normalize_reference(parsed_email.reference)
-    
+
     if normalized_ref:
         logger.debug(
             f"[NORMALIZE] Reference: '{parsed_email.reference}' → "
             f"{len(normalized_ref.tokens)} tokens: {normalized_ref.tokens}"
         )
     else:
-        logger.debug(f"[NORMALIZE] No reference to normalize")
+        logger.debug("[NORMALIZE] No reference to normalize")
 
     # Enrich bank info
     enrichment = enrich_bank_info(
@@ -489,7 +496,7 @@ def normalize_email(parsed_email: ParsedEmail) -> NormalizedEmail:
         sender_name=parsed_email.sender_name,
         subject=parsed_email.subject,
     )
-    
+
     if enrichment.bank_code:
         logger.info(
             f"[NORMALIZE] Bank enrichment: {enrichment.bank_name} ({enrichment.bank_code}) "
@@ -506,14 +513,14 @@ def normalize_email(parsed_email: ParsedEmail) -> NormalizedEmail:
         reference=normalized_ref,
         account_number=parsed_email.account_number,
     )
-    
+
     if composite_key:
         logger.debug(
             f"[NORMALIZE] Composite key generated: {composite_key.amount_str} {composite_key.currency} "
             f"@ {composite_key.date_bucket}"
         )
     else:
-        logger.warning(f"[NORMALIZE] Failed to generate composite key")
+        logger.warning("[NORMALIZE] Failed to generate composite key")
 
     # Calculate normalization quality
     quality_score = 0.0

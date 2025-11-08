@@ -134,7 +134,9 @@ def _init_command_interpreter() -> None:
         examples=["help", "show commands", "what can you do"],
     )
 
-    logger.info("command_interpreter.initialized", command_count=len(interpreter.commands))
+    logger.info(
+        "command_interpreter.initialized", command_count=len(interpreter.commands)
+    )
 
 
 # Initialize on module load
@@ -161,6 +163,7 @@ class JSONRPCRequest(BaseModel):
 # Telex A2A Protocol Models
 class MessagePart(BaseModel):
     """A part of a message (text, data, artifact, etc.)"""
+
     kind: str  # "text", "data", "artifact", etc.
     text: Optional[str] = None
     data: Optional[Any] = None
@@ -169,6 +172,7 @@ class MessagePart(BaseModel):
 
 class Message(BaseModel):
     """A message response conforming to Telex A2A protocol"""
+
     kind: str = "message"
     role: str = "agent"  # Telex expects "agent" not "assistant"
     parts: List[MessagePart]
@@ -177,6 +181,7 @@ class Message(BaseModel):
 
 class TaskStatus(BaseModel):
     """Status of an async task"""
+
     state: str  # "pending", "running", "completed", "failed"
     progress: Optional[float] = None
     message: Optional[str] = None
@@ -184,6 +189,7 @@ class TaskStatus(BaseModel):
 
 class Task(BaseModel):
     """An async task response conforming to Telex A2A protocol"""
+
     id: str
     status: TaskStatus
     result: Optional[Dict[str, Any]] = None
@@ -216,8 +222,10 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
     - message/send: Synchronous reconciliation of bank alert emails
     - execute: Async job submission (placeholder for future implementation)
     """
-    logger.info("a2a.request.received", agent_name=agent_name, path=str(request.url.path))
-    
+    logger.info(
+        "a2a.request.received", agent_name=agent_name, path=str(request.url.path)
+    )
+
     try:
         # Parse JSON body
         payload = await request.json()
@@ -282,8 +290,8 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
                                     "commands": list(interpreter.commands.keys()),
                                     "reason": command_match.params.get("reason"),
                                     "interpreted_from": user_text,
-                                }
-                            )
+                                },
+                            ),
                         ]
                     )
                     resp = JSONRPCResponse(id=req.id, result=result)
@@ -293,18 +301,22 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
                     handlers = CommandHandlers(db)
                     handler_method = getattr(handlers, command_match.command_name)
                     result_data = await handler_method(command_match.params)
-                    
+
                     # Build message parts
                     message_parts = []
-                    
+
                     # Add summary as text
                     if result_data.get("summary"):
-                        message_parts.append(MessagePart(kind="text", text=result_data["summary"]))
-                    
+                        message_parts.append(
+                            MessagePart(kind="text", text=result_data["summary"])
+                        )
+
                     # Add artifacts as data
                     if result_data.get("artifacts"):
-                        message_parts.append(MessagePart(kind="data", data=result_data["artifacts"]))
-                    
+                        message_parts.append(
+                            MessagePart(kind="data", data=result_data["artifacts"])
+                        )
+
                     # Add metadata
                     metadata = {
                         **result_data.get("meta", {}),
@@ -313,11 +325,8 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
                         "confidence": command_match.confidence,
                         "status": result_data.get("status", "success"),
                     }
-                    
-                    result = Message(
-                        parts=message_parts,
-                        metadata=metadata
-                    )
+
+                    result = Message(parts=message_parts, metadata=metadata)
                     resp = JSONRPCResponse(id=req.id, result=result)
                     logger.info(
                         "a2a.natural_language.success",
@@ -347,12 +356,12 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
     if req.method == "status":
         logger.info("a2a.status.start", request_id=req.id, agent=agent_name)
         settings = get_settings()
-        
-        status_text = f"🟢 **BARA Service is healthy**\n\n"
+
+        status_text = "🟢 **BARA Service is healthy**\n\n"
         status_text += f"**Agent:** {agent_name}\n"
         status_text += f"**Environment:** {settings.ENV}\n"
         status_text += f"**Configured Agent:** {settings.A2A_AGENT_NAME}\n"
-        
+
         result = Message(
             parts=[
                 MessagePart(kind="text", text=status_text),
@@ -362,12 +371,14 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
                         "agent": agent_name,
                         "configured_agent": settings.A2A_AGENT_NAME,
                         "env": settings.ENV,
-                    }
-                )
+                    },
+                ),
             ]
         )
         resp = JSONRPCResponse(id=req.id, result=result)
-        logger.info("a2a.status.success", request_id=req.id, agent=agent_name, env=settings.ENV)
+        logger.info(
+            "a2a.status.success", request_id=req.id, agent=agent_name, env=settings.ENV
+        )
         return JSONResponse(status_code=200, content=resp.model_dump())
 
     # MESSAGE/SEND (ON-DEMAND RECONCILIATION) ---------------------------------------
@@ -386,7 +397,7 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
             limit=limit,
             email_ids_count=len(email_ids) if email_ids else 0,
             rematch=rematch,
-            summarize=summarize
+            summarize=summarize,
         )
 
         try:
@@ -394,42 +405,68 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
 
             if email_ids:
                 # Explicit set of emails provided
-                logger.info("a2a.reconcile.mode.targeted", email_ids=email_ids, count=len(email_ids))
+                logger.info(
+                    "a2a.reconcile.mode.targeted",
+                    email_ids=email_ids,
+                    count=len(email_ids),
+                )
                 engine = MatchingEngine(db)
                 match_repo = MatchRepository(Match, db)
                 results: List[MatchResult] = []
                 for eid in email_ids:
-                    logger.debug("a2a.reconcile.processing_email", email_id=eid, rematch=rematch)
+                    logger.debug(
+                        "a2a.reconcile.processing_email", email_id=eid, rematch=rematch
+                    )
                     if rematch:
                         res = await engine.rematch_email(eid)
-                        logger.info("a2a.reconcile.email_rematched", email_id=eid, status=res.match_status)
+                        logger.info(
+                            "a2a.reconcile.email_rematched",
+                            email_id=eid,
+                            status=res.match_status,
+                        )
                     else:
                         # Fetch email and match only if no existing match
                         repo = EmailRepository(Email, db)
                         email_model = await repo.get_by_id(eid)
                         if not email_model:
                             # Skip non-existent email IDs
-                            logger.warning("a2a.reconcile.email_not_found", email_id=eid, request_id=req.id)
+                            logger.warning(
+                                "a2a.reconcile.email_not_found",
+                                email_id=eid,
+                                request_id=req.id,
+                            )
                             continue
                         # Check if match already exists using repository
                         if await match_repo.exists_for_email(eid):
-                            logger.debug("a2a.reconcile.email_already_matched", email_id=eid)
+                            logger.debug(
+                                "a2a.reconcile.email_already_matched", email_id=eid
+                            )
                             continue
                         res = await engine.rematch_email(eid)
-                        logger.info("a2a.reconcile.email_matched", email_id=eid, status=res.match_status)
+                        logger.info(
+                            "a2a.reconcile.email_matched",
+                            email_id=eid,
+                            status=res.match_status,
+                        )
                     results.append(res)
                 # Build synthetic batch result
                 from app.matching.models import BatchMatchResult as BMR
+
                 batch_result = BMR()
                 for r in results:
                     batch_result.add_result(r)
                 batch_result.finalize()
-                logger.info("a2a.reconcile.targeted_complete", emails_processed=len(results))
+                logger.info(
+                    "a2a.reconcile.targeted_complete", emails_processed=len(results)
+                )
             else:
                 # Match all currently unmatched (respect limit)
                 logger.info("a2a.reconcile.mode.unmatched", limit=limit)
                 batch_result = await match_unmatched(db, limit=limit)
-                logger.info("a2a.reconcile.unmatched_complete", emails_processed=batch_result.total_emails)
+                logger.info(
+                    "a2a.reconcile.unmatched_complete",
+                    emails_processed=batch_result.total_emails,
+                )
 
             # Build artifacts
             result_artifacts: list[Dict[str, Any]] = []
@@ -492,21 +529,18 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
             message_parts = []
             if summary_text:
                 message_parts.append(MessagePart(kind="text", text=summary_text))
-            
+
             # Add artifacts as structured data
             if result_artifacts:
                 message_parts.append(MessagePart(kind="data", data=result_artifacts))
-            
+
             # Create metadata
             metadata = {
                 "batch": batch_result.get_summary(),
                 "params": {"limit": limit, "email_ids": email_ids, "rematch": rematch},
             }
-            
-            result = Message(
-                parts=message_parts,
-                metadata=metadata
-            )
+
+            result = Message(parts=message_parts, metadata=metadata)
             resp = JSONRPCResponse(id=req.id, result=result)
             logger.info(
                 "a2a.reconcile.success",
@@ -516,11 +550,16 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
                 needs_review=batch_result.total_needs_review,
                 rejected=batch_result.total_rejected,
                 no_candidates=batch_result.total_no_candidates,
-                avg_confidence=batch_result.average_confidence
+                avg_confidence=batch_result.average_confidence,
             )
             return JSONResponse(status_code=200, content=resp.model_dump())
         except Exception as exc:  # noqa: BLE001
-            logger.exception("a2a.reconcile.error", request_id=req.id, error=str(exc), error_type=type(exc).__name__)
+            logger.exception(
+                "a2a.reconcile.error",
+                request_id=req.id,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
             return JSONResponse(
                 status_code=200,
                 content=JSONRPCResponse(
@@ -538,23 +577,21 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
         # For Stage 7 we return a placeholder; future stages may enqueue a background job.
         params = req.params or {}
         job_id = f"recon-{req.id}"
-        logger.info("a2a.execute.start", request_id=req.id, job_id=job_id, params=params)
-        
+        logger.info(
+            "a2a.execute.start", request_id=req.id, job_id=job_id, params=params
+        )
+
         # Return a Task object for async execution
-        result = Task(
+        task: Task = Task(
             id=job_id,
             status=TaskStatus(
                 state="pending",
                 progress=0.0,
-                message="Reconciliation job accepted (async execution placeholder)"
+                message="Reconciliation job accepted (async execution placeholder)",
             ),
-            result={
-                "job_id": job_id,
-                "params": params,
-                "state": "pending"
-            }
+            result={"job_id": job_id, "params": params, "state": "pending"},
         )
-        resp = JSONRPCResponse(id=req.id, result=result)
+        resp = JSONRPCResponse(id=req.id, result=task)
         logger.info("a2a.execute.accepted", request_id=req.id, job_id=job_id)
         return JSONResponse(status_code=200, content=resp.model_dump())
 

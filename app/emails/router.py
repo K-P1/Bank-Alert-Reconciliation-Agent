@@ -53,7 +53,7 @@ class StatusResponse(BaseModel):
 @router.post("/fetch", response_model=FetchResponse, status_code=status.HTTP_200_OK)
 async def trigger_fetch():
     """Trigger a manual email fetch cycle.
-    
+
     In development mode when IMAP is not configured:
     - Automatically generates mock email data
     - Returns clear indication that data is mocked
@@ -63,76 +63,84 @@ async def trigger_fetch():
         Fetch results
     """
     # Check if IMAP is configured
-    imap_configured = all([
-        settings.IMAP_HOST,
-        settings.IMAP_USER,
-        settings.IMAP_PASS,
-    ])
+    imap_configured = all(
+        [
+            settings.IMAP_HOST,
+            settings.IMAP_USER,
+            settings.IMAP_PASS,
+        ]
+    )
     is_dev = settings.ENV == "development"
-    
+
     # If IMAP not configured and we're in development, use mock data
     if not imap_configured and is_dev:
         logger.warning(
             "🔔 MOCK DATA MODE: IMAP not configured in development. "
             "Generating synthetic bank alert emails for testing purposes."
         )
-        
+
         try:
             # Generate mock emails
             generator = MockEmailGenerator()
             end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(hours=24)
-            
+
             mock_emails = generator.generate_emails(
                 count=settings.MOCK_EMAIL_COUNT,  # Use config value
                 start_time=start_time,
                 end_time=end_time,
             )
-            
+
             # Store mock emails in database
             run_id = f"mock-{uuid.uuid4().hex[:8]}"
             stored_count = 0
             skipped_count = 0
-            
+
             async with UnitOfWork() as uow:
                 for email_data in mock_emails:
                     try:
                         # Check if exists
-                        existing = await uow.emails.get_by_message_id(email_data["message_id"])
+                        existing = await uow.emails.get_by_message_id(
+                            email_data["message_id"]
+                        )
                         if existing:
                             skipped_count += 1
                             continue
-                        
+
                         # Create email
                         await uow.emails.create(**email_data)
                         stored_count += 1
-                        
+
                     except Exception as e:
                         logger.error(f"Error storing mock email: {e}")
-                
+
                 await uow.commit()
-            
+
             logger.info(
                 f"[EMAILS] ✓ Mock data generated: {stored_count} emails stored, "
                 f"{skipped_count} skipped (duplicates)"
             )
-            
+
             return FetchResponse(
                 status="success",
                 run_id=run_id,
                 emails_fetched=len(mock_emails),
                 emails_processed=len(mock_emails),
                 emails_stored=stored_count,
-                error=None if stored_count > 0 else "⚠️ MOCK DATA: Generated for development/testing only",
+                error=(
+                    None
+                    if stored_count > 0
+                    else "⚠️ MOCK DATA: Generated for development/testing only"
+                ),
             )
-            
+
         except Exception as e:
             logger.error(f"[EMAILS] Mock data generation failed: {e}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Mock email generation failed: {str(e)}",
             )
-    
+
     # If IMAP not configured and we're in production, that's an error
     if not imap_configured and not is_dev:
         logger.error(
@@ -143,7 +151,7 @@ async def trigger_fetch():
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Email service not properly configured for production",
         )
-    
+
     # Normal IMAP fetch
     if not _fetcher:
         logger.error("[EMAILS] Fetch requested but fetcher not initialized")

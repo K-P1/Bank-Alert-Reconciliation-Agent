@@ -132,7 +132,7 @@ class RetentionPolicy:
             from datetime import timedelta
 
             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-            
+
             # Use repository count method with comparison operator
             count = await uow.logs.count(timestamp__lt=cutoff)
 

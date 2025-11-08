@@ -7,13 +7,11 @@ Provides endpoints to control the poller, view status, and access metrics.
 from fastapi import APIRouter, HTTPException, status
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
-from datetime import datetime, timedelta, timezone
 import logging
 
 from app.transactions.poller import get_poller
 from app.transactions.clients.mock_client import MockTransactionClient
 from app.core.config import get_settings
-from app.db.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -59,18 +57,18 @@ async def trigger_poll():
 
     This endpoint runs a single poll immediately, regardless of
     the configured interval. Useful for testing or on-demand updates.
-    
+
     In development mode with mock client only:
     - Automatically generates mock transaction data
     - Returns clear indication that data is mocked
     - Will not generate mock data in production
     """
     poller = get_poller()
-    
+
     # Check if we're using mock client in development
     is_mock = isinstance(poller.client, MockTransactionClient)
     is_dev = settings.ENV == "development"
-    
+
     if is_mock and is_dev:
         logger.warning(
             "🔔 MOCK DATA MODE: Using mock transaction client in development. "
@@ -79,7 +77,7 @@ async def trigger_poll():
 
     try:
         result = await poller.poll_once()
-        
+
         # Add mock data warning to response if applicable
         if is_mock and is_dev:
             result["data_source"] = "mock"
@@ -106,7 +104,7 @@ async def trigger_poll():
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Transaction service not properly configured for production",
             )
-        
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Poll failed: {str(e)}",

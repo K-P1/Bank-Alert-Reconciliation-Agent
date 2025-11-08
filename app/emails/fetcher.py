@@ -112,11 +112,13 @@ class EmailFetcher:
             run_id = f"fetch-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
             self.metrics.start_run(run_id)
 
-            logger.info(f"[FETCHER] ========== Starting fetch cycle: {run_id} ==========")
+            logger.info(
+                f"[FETCHER] ========== Starting fetch cycle: {run_id} =========="
+            )
 
             try:
                 # Fetch emails from IMAP
-                logger.info(f"[FETCHER] Connecting to IMAP and fetching emails...")
+                logger.info("[FETCHER] Connecting to IMAP and fetching emails...")
                 raw_emails = await asyncio.to_thread(self._fetch_from_imap)
                 self.metrics.record_fetch(len(raw_emails))
 
@@ -138,7 +140,9 @@ class EmailFetcher:
                 emails_stored = 0
 
                 for idx, raw_email in enumerate(raw_emails, 1):
-                    logger.debug(f"[FETCHER] Processing email {idx}/{len(raw_emails)}: {raw_email.message_id}")
+                    logger.debug(
+                        f"[FETCHER] Processing email {idx}/{len(raw_emails)}: {raw_email.message_id}"
+                    )
                     try:
                         # Parse email
                         parsed_email = await self.parser.parse_email(raw_email)
@@ -219,7 +223,9 @@ class EmailFetcher:
                 return result
 
             except Exception as e:
-                logger.error(f"[FETCHER] ✗ Fetch cycle {run_id} failed: {e}", exc_info=True)
+                logger.error(
+                    f"[FETCHER] ✗ Fetch cycle {run_id} failed: {e}", exc_info=True
+                )
                 self.metrics.end_run("FAILED", error_message=str(e))
                 return {
                     "status": "failed",

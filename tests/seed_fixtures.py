@@ -3,7 +3,7 @@ Seed database with static test fixtures.
 
 This script loads hardcoded test data from fixtures for:
 - Unit tests
-- Integration tests  
+- Integration tests
 - Debugging specific scenarios
 
 For dynamic mock data generation, use: python -m app.db.seed_mock
@@ -38,7 +38,7 @@ async def seed_database():
         transaction_count = await uow.transactions.count()
 
         if email_count > 0 or transaction_count > 0:
-            print(f"\n⚠️  Database already contains data:")
+            print("\n⚠️  Database already contains data:")
             print(f"   - {email_count} emails")
             print(f"   - {transaction_count} transactions")
             response = input("\nContinue and add more data? (y/n): ")
@@ -50,7 +50,7 @@ async def seed_database():
         print(f"\n📧 Seeding {len(SAMPLE_EMAILS)} sample emails...")
         stored_count = 0
         skipped_count = 0
-        
+
         for email_data in SAMPLE_EMAILS:
             try:
                 # Check if email already exists
@@ -61,10 +61,7 @@ async def seed_database():
 
                 email = await uow.emails.create(**email_data)
                 stored_count += 1
-                print(
-                    f"   ✓ {email.message_id} "
-                    f"({email.currency} {email.amount})"
-                )
+                print(f"   ✓ {email.message_id} " f"({email.currency} {email.amount})")
             except Exception as e:
                 print(f"   ✗ Error: {email_data['message_id']}: {e}")
 
@@ -76,7 +73,7 @@ async def seed_database():
         print(f"\n💰 Seeding {len(SAMPLE_TRANSACTIONS)} sample transactions...")
         stored_count = 0
         skipped_count = 0
-        
+
         for txn_data in SAMPLE_TRANSACTIONS:
             try:
                 # Check if transaction already exists
@@ -135,7 +132,7 @@ async def seed_database():
 
         stored_count = 0
         skipped_count = 0
-        
+
         for config_data in default_configs:
             try:
                 existing = await uow.config.get_by_key(config_data["key"])
@@ -159,19 +156,19 @@ async def seed_database():
         print("\n" + "=" * 70)
         print("✅ Database seeding completed successfully!")
         print("=" * 70)
-        
+
         email_count = await uow.emails.count()
         transaction_count = await uow.transactions.count()
         config_count = await uow.config.count()
 
-        print(f"\n📊 Database summary:")
+        print("\n📊 Database summary:")
         print(f"   - Total emails: {email_count}")
         print(f"   - Total transactions: {transaction_count}")
         print(f"   - Total configs: {config_count}")
-        
-        print(f"\n💡 Next steps:")
-        print(f"   - Run tests: pytest -v")
-        print(f"   - Run reconciliation: POST /a2a/agent/BARA")
+
+        print("\n💡 Next steps:")
+        print("   - Run tests: pytest -v")
+        print("   - Run reconciliation: POST /a2a/agent/BARA")
         print()
 
 
