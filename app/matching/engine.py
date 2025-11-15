@@ -36,17 +36,24 @@ class MatchingEngine:
     4. Result persistence
     """
 
-    def __init__(self, session: AsyncSession, config: MatchingConfig | None = None):
+    def __init__(
+        self,
+        session: AsyncSession,
+        config: MatchingConfig | None = None,
+        enable_actions: bool = True,
+    ):
         """
         Initialize matching engine.
 
         Args:
             session: Database session
             config: Matching configuration
+            enable_actions: Whether to enable post-processing actions
         """
         self.session = session
         self.config = config or MatchingConfig()
         self.config.validate_config()
+        self.enable_actions = enable_actions
 
         # Initialize components
         self.retriever = CandidateRetriever(session, config)
@@ -61,7 +68,13 @@ class MatchingEngine:
         self.match_repo = MatchRepository(Match, self.session)
         self.transaction_repo = TransactionRepository(Transaction, self.session)
 
-        logger.info("Matching engine initialized successfully")
+        # Initialize action executor (lazy loading)
+        self._action_executor = None
+
+        logger.info(
+            f"Matching engine initialized successfully "
+            f"(actions: {'enabled' if enable_actions else 'disabled'})"
+        )
 
     async def match_email(
         self,
@@ -151,6 +164,11 @@ class MatchingEngine:
                 f"confidence: {result.confidence:.2f})"
             )
             await self._persist_match_result(result)
+
+            # Step 6: Execute post-processing actions
+            if self.enable_actions:
+                logger.info("[MATCH] Step 6: Executing post-processing actions...")
+                await self._execute_actions(result, normalized_email)
 
         logger.info(
             f"[MATCH] ✓ Match completed for email: {normalized_email.message_id} | "
@@ -484,6 +502,83 @@ class MatchingEngine:
                 await self.session.rollback()
 
             raise
+
+    @property
+    def action_executor(self):
+        """Lazy load action executor."""
+        if self._action_executor is None:
+            from app.actions.executor import ActionExecutor
+
+            self._action_executor = ActionExecutor(self.session)
+        return self._action_executor
+
+    async def _execute_actions(
+        self,
+        result: MatchResult,
+        normalized_email: NormalizedEmail,
+    ) -> None:
+        """
+        Execute post-processing actions for a match result.
+
+        Args:
+            result: Match result
+            normalized_email: Normalized email data
+        """
+        try:
+            # Get match record to retrieve match_id
+            match = await self.match_repo.get_by_email_id(result.email_id)
+            if not match:
+                logger.warning(
+                    f"[ACTIONS] Match record not found for email {result.email_id}, "
+                    "skipping actions"
+                )
+                return
+
+            # Get transaction ID if matched
+            transaction_id = None
+            if result.best_candidate:
+                txn = await self.transaction_repo.get_by_transaction_id(
+                    result.best_candidate.external_transaction_id
+                )
+                transaction_id = txn.id if txn else None
+
+            # Build metadata for actions
+            metadata = {
+                "amount": float(normalized_email.amount or 0),
+                "currency": normalized_email.currency,
+                "reference": (
+                    normalized_email.reference.original
+                    if normalized_email.reference
+                    else "N/A"
+                ),
+                "sender": (
+                    normalized_email.enrichment.bank_name
+                    if normalized_email.enrichment
+                    else normalized_email.sender
+                ),
+                "alternative_candidates_count": len(result.alternative_candidates),
+                "message_id": normalized_email.message_id,
+            }
+
+            # Execute actions asynchronously
+            await self.action_executor.execute_with_retry(
+                match_id=match.id,
+                email_id=result.email_id,
+                transaction_id=transaction_id,
+                match_status=result.match_status,
+                confidence=result.confidence,
+                metadata=metadata,
+                actor="matching_engine",
+            )
+
+            logger.info(f"[ACTIONS] ✓ Actions completed for match {match.id}")
+
+        except Exception as e:
+            logger.error(
+                f"[ACTIONS] Failed to execute actions for email {result.email_id}: {e}",
+                exc_info=True,
+            )
+            # Don't fail the match if actions fail
 
 
 # Convenience functions

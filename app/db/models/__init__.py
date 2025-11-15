@@ -5,5 +5,6 @@ from .transaction import Transaction
 from .match import Match
 from .log import Log
 from .config import Config
+from .action_audit import ActionAudit
 
-__all__ = ["Email", "Transaction", "Match", "Log", "Config"]
+__all__ = ["Email", "Transaction", "Match", "Log", "Config", "ActionAudit"]

@@ -574,26 +574,253 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
 
     # EXECUTE (ASYNC JOB PLACEHOLDER) ----------------------------------------------
     if req.method == "execute":
-        # For Stage 7 we return a placeholder; future stages may enqueue a background job.
+        # Enhanced execute method with automation control support
         params = req.params or {}
-        job_id = f"recon-{req.id}"
+        action = params.get("action", "start_automation")
+
         logger.info(
-            "a2a.execute.start", request_id=req.id, job_id=job_id, params=params
+            "a2a.execute.start", request_id=req.id, action=action, params=params
         )
 
-        # Return a Task object for async execution
-        task: Task = Task(
-            id=job_id,
-            status=TaskStatus(
-                state="pending",
-                progress=0.0,
-                message="Reconciliation job accepted (async execution placeholder)",
-            ),
-            result={"job_id": job_id, "params": params, "state": "pending"},
-        )
-        resp = JSONRPCResponse(id=req.id, result=task)
-        logger.info("a2a.execute.accepted", request_id=req.id, job_id=job_id)
-        return JSONResponse(status_code=200, content=resp.model_dump())
+        # Import automation
+        from app.actions.automation import get_automation
+
+        automation = get_automation()
+
+        try:
+            # Handle automation control commands
+            if action == "start_automation":
+                # Start background automation
+                interval = params.get("interval_seconds", 900)  # Default 15 min
+                enable_actions = params.get("enable_actions", True)
+
+                if automation._running:
+                    message_text = "⚠️ **Automation already running**\n\n"
+                    message_text += (
+                        f"**Current interval:** {automation.interval_seconds}s\n"
+                    )
+                    message_text += (
+                        f"**Actions enabled:** {automation.enable_actions}\n"
+                    )
+                    message_text += f"**Total runs:** {automation.total_runs}\n"
+
+                    result = Message(
+                        parts=[
+                            MessagePart(kind="text", text=message_text),
+                            MessagePart(kind="data", data=automation.get_status()),
+                        ]
+                    )
+                    resp = JSONRPCResponse(id=req.id, result=result)
+                    return JSONResponse(status_code=200, content=resp.model_dump())
+
+                # Update configuration if provided
+                if interval:
+                    automation.interval_seconds = interval
+                automation.enable_actions = enable_actions
+
+                await automation.start()
+
+                message_text = "✅ **Automation started successfully!**\n\n"
+                message_text += f"**Interval:** Every {automation.interval_seconds}s ({automation.interval_seconds // 60} minutes)\n"
+                message_text += f"**Actions:** {'Enabled' if automation.enable_actions else 'Disabled'}\n\n"
+                message_text += "The system will now automatically:\n"
+                message_text += "  1. Fetch new emails\n"
+                message_text += "  2. Poll new transactions\n"
+                message_text += "  3. Match unprocessed emails\n"
+                message_text += "  4. Execute post-processing actions\n"
+
+                result = Message(
+                    parts=[
+                        MessagePart(kind="text", text=message_text),
+                        MessagePart(kind="data", data=automation.get_status()),
+                    ]
+                )
+                resp = JSONRPCResponse(id=req.id, result=result)
+                logger.info("a2a.execute.automation_started", request_id=req.id)
+                return JSONResponse(status_code=200, content=resp.model_dump())
+
+            elif action == "stop_automation":
+                # Stop background automation
+                if not automation._running:
+                    message_text = "⚠️ **Automation not running**\n\n"
+                    message_text += (
+                        "Use `start_automation` to begin automatic reconciliation.\n"
+                    )
+
+                    result = Message(
+                        parts=[
+                            MessagePart(kind="text", text=message_text),
+                            MessagePart(kind="data", data=automation.get_status()),
+                        ]
+                    )
+                    resp = JSONRPCResponse(id=req.id, result=result)
+                    return JSONResponse(status_code=200, content=resp.model_dump())
+
+                await automation.stop()
+
+                message_text = "🛑 **Automation stopped**\n\n"
+                message_text += f"**Total runs completed:** {automation.total_runs}\n"
+                message_text += f"**Successful:** {automation.successful_runs}\n"
+                message_text += f"**Failed:** {automation.failed_runs}\n"
+
+                result = Message(
+                    parts=[
+                        MessagePart(kind="text", text=message_text),
+                        MessagePart(kind="data", data=automation.get_status()),
+                    ]
+                )
+                resp = JSONRPCResponse(id=req.id, result=result)
+                logger.info("a2a.execute.automation_stopped", request_id=req.id)
+                return JSONResponse(status_code=200, content=resp.model_dump())
+
+            elif action == "automation_status":
+                # Get automation status
+                status = automation.get_status()
+
+                if status["running"]:
+                    message_text = "✅ **Automation is RUNNING**\n\n"
+                    message_text += f"**Interval:** {status['interval_seconds']}s ({status['interval_seconds'] // 60} min)\n"
+                    message_text += f"**Actions:** {'Enabled' if status['actions_enabled'] else 'Disabled'}\n\n"
+                    message_text += "**Statistics:**\n"
+                    message_text += (
+                        f"  • Total runs: {status['metrics']['total_runs']}\n"
+                    )
+                    message_text += (
+                        f"  • Successful: {status['metrics']['successful_runs']}\n"
+                    )
+                    message_text += f"  • Failed: {status['metrics']['failed_runs']}\n"
+                    if status["metrics"]["last_run_at"]:
+                        message_text += (
+                            f"  • Last run: {status['metrics']['last_run_at']}\n"
+                        )
+                        if status["metrics"]["last_run_stats"]:
+                            stats = status["metrics"]["last_run_stats"]
+                            message_text += f"  • Last run: {stats.get('emails_matched', 0)} emails, {stats.get('actions_executed', 0)} actions\n"
+                else:
+                    message_text = "⚪ **Automation is STOPPED**\n\n"
+                    message_text += (
+                        f"**Total runs:** {status['metrics']['total_runs']}\n"
+                    )
+                    message_text += (
+                        f"**Successful:** {status['metrics']['successful_runs']}\n"
+                    )
+                    message_text += (
+                        f"**Failed:** {status['metrics']['failed_runs']}\n\n"
+                    )
+                    message_text += (
+                        "Use `start_automation` to begin automatic reconciliation.\n"
+                    )
+
+                result = Message(
+                    parts=[
+                        MessagePart(kind="text", text=message_text),
+                        MessagePart(kind="data", data=status),
+                    ]
+                )
+                resp = JSONRPCResponse(id=req.id, result=result)
+                logger.info(
+                    "a2a.execute.automation_status",
+                    request_id=req.id,
+                    running=status["running"],
+                )
+                return JSONResponse(status_code=200, content=resp.model_dump())
+
+            elif action == "run_once":
+                # Manually trigger one reconciliation cycle
+                message_text = "🔄 **Starting manual reconciliation cycle...**\n\n"
+
+                result = Message(parts=[MessagePart(kind="text", text=message_text)])
+                resp = JSONRPCResponse(id=req.id, result=result)
+
+                # Execute cycle
+                stats = await automation.run_once()
+
+                success = len(stats.get("errors", [])) == 0
+
+                if success:
+                    summary_text = "✅ **Manual reconciliation complete!**\n\n"
+                else:
+                    summary_text = "⚠️ **Reconciliation completed with errors**\n\n"
+
+                summary_text += "**Results:**\n"
+                summary_text += (
+                    f"  • Emails fetched: {stats.get('emails_fetched', 0)}\n"
+                )
+                summary_text += (
+                    f"  • Transactions polled: {stats.get('transactions_polled', 0)}\n"
+                )
+                summary_text += (
+                    f"  • Emails matched: {stats.get('emails_matched', 0)}\n"
+                )
+                summary_text += (
+                    f"  • Matches successful: {stats.get('matches_successful', 0)}\n"
+                )
+                summary_text += (
+                    f"  • Needs review: {stats.get('matches_needs_review', 0)}\n"
+                )
+                summary_text += (
+                    f"  • Actions executed: {stats.get('actions_executed', 0)}\n"
+                )
+
+                if stats.get("errors"):
+                    summary_text += f"\n**Errors:** {len(stats['errors'])}\n"
+                    for error in stats["errors"][:3]:  # Show first 3 errors
+                        summary_text += f"  • {error}\n"
+
+                result = Message(
+                    parts=[
+                        MessagePart(kind="text", text=summary_text),
+                        MessagePart(kind="data", data=stats),
+                    ]
+                )
+                resp = JSONRPCResponse(id=req.id, result=result)
+                logger.info(
+                    "a2a.execute.run_once_complete", request_id=req.id, success=success
+                )
+                return JSONResponse(status_code=200, content=resp.model_dump())
+
+            else:
+                # Unknown action - return error
+                logger.warning(
+                    "a2a.execute.unknown_action", action=action, request_id=req.id
+                )
+                return JSONResponse(
+                    status_code=200,
+                    content=JSONRPCResponse(
+                        id=req.id,
+                        error=JSONRPCError(
+                            code=-32602,
+                            message=f"Unknown action: {action}",
+                            data={
+                                "valid_actions": [
+                                    "start_automation",
+                                    "stop_automation",
+                                    "automation_status",
+                                    "run_once",
+                                ]
+                            },
+                        ),
+                    ).model_dump(),
+                )
+
+        except Exception as exc:
+            logger.exception(
+                "a2a.execute.error",
+                request_id=req.id,
+                action=action,
+                error=str(exc),
+            )
+            return JSONResponse(
+                status_code=200,
+                content=JSONRPCResponse(
+                    id=req.id,
+                    error=JSONRPCError(
+                        code=500,
+                        message=f"Execute action failed: {action}",
+                        data={"detail": str(exc)},
+                    ),
+                ).model_dump(),
+            )
 
     # For message/send and execute (and anything else), respond as not implemented
     logger.warning("a2a.method.not_implemented", method=req.method, request_id=req.id)

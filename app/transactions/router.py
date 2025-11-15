@@ -171,3 +171,7 @@ async def stop_poller():
 
     await poller.stop()
     return {"status": "stopped", "message": "Poller stopped successfully"}
+
+
+# Export poller for automation system
+_poller = get_poller()

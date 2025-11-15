@@ -13,6 +13,8 @@ from app.emails.fetcher import EmailFetcher
 from app.emails.router import router as emails_router
 from app.emails.router import set_fetcher
 from app.transactions.router import router as transactions_router
+from app.actions.router import router as actions_router
+from app.actions.automation_router import router as automation_router
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +84,8 @@ app.middleware("http")(request_id_middleware)
 app.include_router(a2a_router)
 app.include_router(transactions_router)
 app.include_router(emails_router)
+app.include_router(actions_router)
+app.include_router(automation_router)
 
 
 @app.get("/")

@@ -11,12 +11,22 @@ class ConfigRepository(BaseRepository[Config]):
     """Repository for Config model with specialized queries."""
 
     async def get_by_key(self, key: str) -> Optional[Config]:
-        """Get a config by key."""
+        """Get a config by key.
+
+        Args:
+            key: Unique configuration key
+
+        Returns:
+            Config instance or None if not found
+        """
         return await self.get_by_field("key", key)
 
     async def get_value(self, key: str, default: Any = None) -> Any:
         """
         Get a config value parsed to its correct type.
+
+        Automatically converts the stored string value to the appropriate
+        Python type based on the config's value_type field.
 
         Args:
             key: Config key
@@ -44,19 +54,24 @@ class ConfigRepository(BaseRepository[Config]):
         """
         Set a config value (create or update).
 
+        Creates a new config entry if the key doesn't exist, or updates
+        the existing one. Automatically converts the value to string
+        for storage and handles JSON serialization for complex types.
+
         Args:
-            key: Config key
-            value: Config value
-            value_type: Type hint
-            description: Description
-            category: Category
-            is_sensitive: Whether sensitive
-            is_editable: Whether editable
-            updated_by: Who updated it
+            key: Unique configuration key
+            value: Configuration value (any type)
+            value_type: Data type hint ("string", "int", "float", "bool", "json")
+            description: Human-readable description
+            category: Grouping category (e.g., "matching", "email")
+            is_sensitive: Whether contains sensitive data (affects logging)
+            is_editable: Whether can be modified via UI/API
+            updated_by: User/system identifier for audit trail
 
         Returns:
-            Config instance
+            The created or updated Config instance
         """
+        # Convert value to string
         # Convert value to string
         if value_type == "json":
             value_str = json.dumps(value)
@@ -94,27 +109,39 @@ class ConfigRepository(BaseRepository[Config]):
         """
         Get all configs in a category.
 
+        Useful for retrieving related configuration settings by functional area.
+
         Args:
-            category: Config category
+            category: Configuration category (e.g., "matching", "email", "retention")
 
         Returns:
-            List of configs
+            List of Config instances in the specified category
         """
         return await self.filter(category=category)
 
     async def get_editable(self) -> List[Config]:
-        """Get all editable configs."""
+        """Get all editable configs.
+
+        Returns configs that can be modified via UI/API, excluding
+        system-only or read-only configuration settings.
+
+        Returns:
+            List of editable Config instances
+        """
         return await self.filter(is_editable=True)
 
     async def get_all_as_dict(self, category: Optional[str] = None) -> dict:
         """
         Get all configs as a dictionary (key -> value).
 
+        Convenient method for loading multiple configuration values at once.
+        Values are automatically converted to their proper types.
+
         Args:
-            category: Optional category filter
+            category: Optional category filter to limit results
 
         Returns:
-            Dictionary of config key-value pairs
+            Dictionary mapping config keys to their typed values
         """
         if category:
             configs = await self.get_by_category(category)
@@ -127,11 +154,14 @@ class ConfigRepository(BaseRepository[Config]):
         """
         Delete a config by key.
 
+        Permanently removes a configuration setting from the database.
+        Use with caution as this cannot be undone.
+
         Args:
-            key: Config key
+            key: Unique configuration key to delete
 
         Returns:
-            True if deleted
+            True if the config was found and deleted, False if not found
         """
         config = await self.get_by_key(key)
         if config:
