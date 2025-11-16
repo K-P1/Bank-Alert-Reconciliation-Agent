@@ -185,54 +185,121 @@ class CommandInterpreter:
         lines = [
             "🤖 **BARA - Bank Alert Reconciliation Agent**",
             "",
-            "Available Commands:",
+            "I can help you manage and reconcile bank alert emails with transactions. Here are all the commands I understand:",
             "",
         ]
 
-        for cmd_name, cmd_def in self.commands.items():
-            if cmd_name == "help":
-                continue  # Skip help in the list
+        # Group commands by category
+        categories = {
+            "Reconciliation": [
+                "reconcile_now",
+                "show_summary",
+                "list_unmatched",
+                "get_confidence_report",
+            ],
+            "Email Management": [
+                "fetch_emails",
+                "get_email_status",
+                "start_email_fetcher",
+                "stop_email_fetcher",
+            ],
+            "Transaction Management": [
+                "poll_transactions",
+                "get_transaction_status",
+                "start_transaction_poller",
+                "stop_transaction_poller",
+            ],
+            "Workflow & Actions": [
+                "get_workflow_policy",
+                "get_action_audits",
+                "get_action_statistics",
+            ],
+            "Automation": [
+                "get_automation_status",
+                "start_automation",
+                "stop_automation",
+                "run_automation_once",
+            ],
+        }
 
-            # Command title
-            lines.append(f"**/{cmd_name.replace('_', ' ')}**")
-            lines.append(f"  {cmd_def.description}")
-
-            # Show parameters if any
-            if cmd_def.param_extractors:
-                lines.append("  Parameters:")
-                for param_name in cmd_def.param_extractors.keys():
-                    if param_name == "limit":
-                        lines.append(
-                            f"    • {param_name}: Number of items to process (e.g., '50 emails', 'limit 20')"
-                        )
-                    elif param_name == "days":
-                        lines.append(
-                            f"    • {param_name}: Number of days to look back (e.g., 'last 14 days', 'for 7 days')"
-                        )
-                    elif param_name == "rematch":
-                        lines.append(
-                            f"    • {param_name}: Force re-matching of already matched items (mention 'rematch' or 'force')"
-                        )
-                    else:
-                        lines.append(f"    • {param_name}: Optional parameter")
-
-            # Show examples
-            lines.append("  Examples:")
-            for example in cmd_def.examples:
-                lines.append(f"    • {example}")
+        for category, cmd_names in categories.items():
+            lines.append(f"**{category}**")
             lines.append("")
+
+            for cmd_name in cmd_names:
+                if cmd_name not in self.commands:
+                    continue
+
+                cmd_def = self.commands[cmd_name]
+
+                # Command title with friendly name
+                friendly_name = cmd_name.replace("_", " ").title()
+                lines.append(f"**{friendly_name}**")
+                lines.append(f"  {cmd_def.description}")
+
+                # Show parameters if any with detailed descriptions
+                if cmd_def.param_extractors:
+                    lines.append("  Parameters:")
+                    for param_name in cmd_def.param_extractors.keys():
+                        if param_name == "limit":
+                            lines.append(
+                                "    • limit: How many items to process or return "
+                                "(e.g., 'show 50 items', 'limit 20', 'top 100')"
+                            )
+                        elif param_name == "days":
+                            lines.append(
+                                "    • days: Number of days to look back in history "
+                                "(e.g., 'last 7 days', 'for 14 days', 'past 30 days')"
+                            )
+                        elif param_name == "hours":
+                            lines.append(
+                                "    • hours: Number of hours to look back "
+                                "(e.g., 'last 24 hours', 'past 12 hours', 'for 48 hours')"
+                            )
+                        elif param_name == "rematch":
+                            lines.append(
+                                "    • rematch: Force re-matching of already matched items "
+                                "(just say 'rematch', 'force', or 're-run')"
+                            )
+                        elif param_name == "interval":
+                            lines.append(
+                                "    • interval: How often to run (in time units) "
+                                "(e.g., '5 minutes', '300 seconds', '1 hour')"
+                            )
+                        else:
+                            lines.append(f"    • {param_name}: Optional parameter")
+
+                # Show examples
+                lines.append("  Try saying:")
+                for example in cmd_def.examples[:3]:  # Limit to 3 examples
+                    lines.append(f'    • "{example}"')
+                lines.append("")
 
         lines.extend(
             [
-                "**/help**",
-                "  Show this list of commands",
-                "  Examples:",
-                "    • help",
-                "    • show commands",
-                "    • what can you do",
+                "**Getting Help**",
                 "",
-                "💡 *Tip: Commands are case-insensitive and flexible - try natural phrasing!*",
-                "💡 *Parameters can be mentioned anywhere in your message (e.g., 'reconcile 50 emails' or 'show summary for last 30 days')*",
+                "**Help**",
+                "  Show this list of commands",
+                "  Try saying:",
+                '    • "help"',
+                '    • "show commands"',
+                '    • "what can you do"',
+                "",
+                "---",
+                "",
+                "💡 **Tips:**",
+                "  • Commands are case-insensitive and flexible - use natural language!",
+                "  • Parameters can appear anywhere in your message",
+                '  • Combine keywords naturally: "reconcile 50 emails and rematch"',
+                '  • Ask questions naturally: "is automation running?" or "what\'s the status?"',
+                "",
+                "📝 **Examples of natural queries:**",
+                '  • "reconcile the last 100 emails"',
+                '  • "show me the summary for the past 14 days"',
+                '  • "start automation with 5 minute intervals"',
+                '  • "what actions were executed in the last 24 hours?"',
+                '  • "fetch new emails and poll transactions"',
             ]
         )
 

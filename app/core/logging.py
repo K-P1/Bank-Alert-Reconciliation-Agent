@@ -21,7 +21,7 @@ def configure_logging(env: str = "development") -> None:
     """Configure structlog for clean, readable console logs to stdout."""
     timestamper = structlog.processors.TimeStamper(fmt="iso", utc=True)
 
-    shared_processors = [
+    shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
         _add_log_level,
         timestamper,
@@ -40,7 +40,6 @@ def configure_logging(env: str = "development") -> None:
             *shared_processors,
             structlog.dev.ConsoleRenderer(
                 colors=True,
-                exception_formatter=structlog.dev.plain_traceback,
             ),
         ],
         context_class=dict,

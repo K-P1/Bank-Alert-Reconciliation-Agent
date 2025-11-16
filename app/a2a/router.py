@@ -23,6 +23,8 @@ from app.a2a.command_handlers import (
     extract_limit,
     extract_days,
     extract_rematch_flag,
+    extract_hours,
+    extract_interval,
 )
 
 
@@ -119,6 +121,293 @@ def _init_command_interpreter() -> None:
         param_extractors={"days": extract_days},
     )
 
+    # Register: fetch_emails
+    interpreter.register_command(
+        name="fetch_emails",
+        patterns=[
+            r"\bfetch\s+(emails?|alerts?)\b",
+            r"\bget\s+(new\s+)?(emails?|alerts?)\b",
+            r"\bcheck\s+(for\s+)?(new\s+)?(emails?|alerts?)\b",
+            r"\bretrieve\s+(emails?|alerts?)\b",
+            r"\bpull\s+(emails?|alerts?)\b",
+        ],
+        handler=None,
+        description="Fetch new emails from IMAP server",
+        examples=[
+            "fetch emails",
+            "get new alerts",
+            "check for new emails",
+            "retrieve emails",
+        ],
+    )
+
+    # Register: get_email_status
+    interpreter.register_command(
+        name="get_email_status",
+        patterns=[
+            r"\bemail\s+(fetcher\s+)?status\b",
+            r"\bcheck\s+email\s+service\b",
+            r"\bemail\s+fetcher\s+state\b",
+            r"\bis\s+email\s+fetcher\s+running\b",
+        ],
+        handler=None,
+        description="Get email fetcher status and metrics",
+        examples=[
+            "email status",
+            "check email service",
+            "is email fetcher running",
+        ],
+    )
+
+    # Register: start_email_fetcher
+    interpreter.register_command(
+        name="start_email_fetcher",
+        patterns=[
+            r"\bstart\s+email\s+fetcher\b",
+            r"\benable\s+email\s+(fetching|polling)\b",
+            r"\bturn\s+on\s+email\s+service\b",
+            r"\bactivate\s+email\s+fetcher\b",
+        ],
+        handler=None,
+        description="Start the email fetcher background service",
+        examples=[
+            "start email fetcher",
+            "enable email fetching",
+            "turn on email service",
+        ],
+    )
+
+    # Register: stop_email_fetcher
+    interpreter.register_command(
+        name="stop_email_fetcher",
+        patterns=[
+            r"\bstop\s+email\s+fetcher\b",
+            r"\bdisable\s+email\s+(fetching|polling)\b",
+            r"\bturn\s+off\s+email\s+service\b",
+            r"\bdeactivate\s+email\s+fetcher\b",
+        ],
+        handler=None,
+        description="Stop the email fetcher background service",
+        examples=[
+            "stop email fetcher",
+            "disable email fetching",
+            "turn off email service",
+        ],
+    )
+
+    # Register: poll_transactions
+    interpreter.register_command(
+        name="poll_transactions",
+        patterns=[
+            r"\bpoll\s+transactions?\b",
+            r"\bfetch\s+transactions?\b",
+            r"\bget\s+(new\s+)?transactions?\b",
+            r"\bretrieve\s+transactions?\b",
+            r"\bcheck\s+(for\s+)?(new\s+)?transactions?\b",
+        ],
+        handler=None,
+        description="Fetch new transactions from API",
+        examples=[
+            "poll transactions",
+            "fetch transactions",
+            "get new transactions",
+            "check for transactions",
+        ],
+    )
+
+    # Register: get_transaction_status
+    interpreter.register_command(
+        name="get_transaction_status",
+        patterns=[
+            r"\btransaction\s+(poller\s+)?status\b",
+            r"\bcheck\s+transaction\s+service\b",
+            r"\btransaction\s+poller\s+state\b",
+            r"\bis\s+transaction\s+poller\s+running\b",
+        ],
+        handler=None,
+        description="Get transaction poller status and metrics",
+        examples=[
+            "transaction status",
+            "check transaction service",
+            "is transaction poller running",
+        ],
+    )
+
+    # Register: start_transaction_poller
+    interpreter.register_command(
+        name="start_transaction_poller",
+        patterns=[
+            r"\bstart\s+transaction\s+poller\b",
+            r"\benable\s+transaction\s+(fetching|polling)\b",
+            r"\bturn\s+on\s+transaction\s+service\b",
+            r"\bactivate\s+transaction\s+poller\b",
+        ],
+        handler=None,
+        description="Start the transaction poller background service",
+        examples=[
+            "start transaction poller",
+            "enable transaction polling",
+            "turn on transaction service",
+        ],
+    )
+
+    # Register: stop_transaction_poller
+    interpreter.register_command(
+        name="stop_transaction_poller",
+        patterns=[
+            r"\bstop\s+transaction\s+poller\b",
+            r"\bdisable\s+transaction\s+(fetching|polling)\b",
+            r"\bturn\s+off\s+transaction\s+service\b",
+            r"\bdeactivate\s+transaction\s+poller\b",
+        ],
+        handler=None,
+        description="Stop the transaction poller background service",
+        examples=[
+            "stop transaction poller",
+            "disable transaction polling",
+            "turn off transaction service",
+        ],
+    )
+
+    # Register: get_workflow_policy
+    interpreter.register_command(
+        name="get_workflow_policy",
+        patterns=[
+            r"\bworkflow\s+policy\b",
+            r"\baction\s+policy\b",
+            r"\bget\s+(workflow\s+)?configuration\b",
+            r"\bshow\s+(workflow\s+)?rules\b",
+            r"\bwhat\s+actions\s+are\s+configured\b",
+        ],
+        handler=None,
+        description="Get current workflow policy configuration",
+        examples=[
+            "workflow policy",
+            "show workflow rules",
+            "get configuration",
+            "what actions are configured",
+        ],
+    )
+
+    # Register: get_action_audits
+    interpreter.register_command(
+        name="get_action_audits",
+        patterns=[
+            r"\baction\s+audits?\b",
+            r"\bshow\s+action\s+(logs?|history)\b",
+            r"\blist\s+actions?\s+(executed|performed)\b",
+            r"\baction\s+execution\s+history\b",
+        ],
+        handler=None,
+        description="Get action audit logs with execution history",
+        examples=[
+            "action audits",
+            "show action logs",
+            "list actions executed",
+            "action history",
+        ],
+        param_extractors={"limit": extract_limit, "hours": extract_hours},
+    )
+
+    # Register: get_action_statistics
+    interpreter.register_command(
+        name="get_action_statistics",
+        patterns=[
+            r"\baction\s+statistics\b",
+            r"\baction\s+stats\b",
+            r"\baction\s+metrics\b",
+            r"\baction\s+performance\b",
+            r"\bhow\s+many\s+actions\b",
+        ],
+        handler=None,
+        description="Get action execution statistics",
+        examples=[
+            "action statistics",
+            "action stats",
+            "action metrics",
+            "how many actions executed",
+        ],
+        param_extractors={"hours": extract_hours},
+    )
+
+    # Register: get_automation_status
+    interpreter.register_command(
+        name="get_automation_status",
+        patterns=[
+            r"\bautomation\s+status\b",
+            r"\bcheck\s+automation\b",
+            r"\bis\s+automation\s+running\b",
+            r"\bautomation\s+state\b",
+        ],
+        handler=None,
+        description="Get automation service status and metrics",
+        examples=[
+            "automation status",
+            "check automation",
+            "is automation running",
+        ],
+    )
+
+    # Register: start_automation
+    interpreter.register_command(
+        name="start_automation",
+        patterns=[
+            r"\bstart\s+automation\b",
+            r"\benable\s+automation\b",
+            r"\bturn\s+on\s+automation\b",
+            r"\bactivate\s+automation\b",
+            r"\bbegin\s+auto(mated)?\s+reconciliation\b",
+        ],
+        handler=None,
+        description="Start the automation background service",
+        examples=[
+            "start automation",
+            "enable automation",
+            "turn on automation",
+            "begin automated reconciliation",
+        ],
+        param_extractors={"interval": extract_interval},
+    )
+
+    # Register: stop_automation
+    interpreter.register_command(
+        name="stop_automation",
+        patterns=[
+            r"\bstop\s+automation\b",
+            r"\bdisable\s+automation\b",
+            r"\bturn\s+off\s+automation\b",
+            r"\bdeactivate\s+automation\b",
+            r"\bhalt\s+auto(mated)?\s+reconciliation\b",
+        ],
+        handler=None,
+        description="Stop the automation background service",
+        examples=[
+            "stop automation",
+            "disable automation",
+            "turn off automation",
+        ],
+    )
+
+    # Register: run_automation_once
+    interpreter.register_command(
+        name="run_automation_once",
+        patterns=[
+            r"\brun\s+automation\s+once\b",
+            r"\bmanual\s+automation\s+(run|cycle)\b",
+            r"\brun\s+(full\s+)?reconciliation\s+cycle\b",
+            r"\bexecute\s+complete\s+workflow\b",
+            r"\bdo\s+one\s+automation\s+cycle\b",
+        ],
+        handler=None,
+        description="Run a single complete automation cycle manually",
+        examples=[
+            "run automation once",
+            "run full reconciliation cycle",
+            "execute complete workflow",
+            "manual automation run",
+        ],
+    )
+
     # Register: help
     interpreter.register_command(
         name="help",
@@ -174,7 +463,7 @@ class Message(BaseModel):
     """A message response conforming to Telex A2A protocol"""
 
     kind: str = "message"
-    role: str = "agent"  # Telex expects "agent" not "assistant"
+    role: str = "agent"
     parts: List[MessagePart]
     metadata: Optional[Dict[str, Any]] = None
 

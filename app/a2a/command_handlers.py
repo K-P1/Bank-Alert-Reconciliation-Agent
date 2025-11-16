@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,6 +35,23 @@ class CommandHandlers:
         self.email_repo = EmailRepository(Email, db)
         self.match_repo = MatchRepository(Match, db)
         self.transaction_repo = TransactionRepository(Transaction, db)
+
+    def _as_dict(self, obj: Any) -> Dict[str, Any]:
+        """Normalize a Pydantic model or mapping to a plain dict.
+
+        This helps static type checkers and ensures consistent handling
+        of router responses that may return either a Pydantic model
+        or a raw dict.
+        """
+        if isinstance(obj, dict):
+            return obj
+        if hasattr(obj, "model_dump"):
+            # model_dump returns a variety of types; cast to a dict for
+            # the static type checker to accept our usage below.
+            return cast(Dict[str, Any], obj.model_dump())
+        if hasattr(obj, "dict"):
+            return cast(Dict[str, Any], obj.dict())
+        return {}
 
     async def reconcile_now(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -339,6 +356,724 @@ class CommandHandlers:
                 "meta": {"error": str(exc)},
             }
 
+    async def fetch_emails(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Trigger immediate email fetch from IMAP.
+
+        Params:
+            None
+        """
+        logger.info("handler.fetch_emails.start")
+
+        try:
+            # Import here to avoid circular dependency
+            from app.emails.router import trigger_fetch
+
+            result = await trigger_fetch()
+
+            summary = (
+                f"✅ Email fetch complete!\n\n"
+                f"📊 **Results:**\n"
+                f"  • Emails fetched: {result.emails_fetched}\n"
+                f"  • Emails processed: {result.emails_processed}\n"
+                f"  • Emails stored: {result.emails_stored}\n"
+            )
+
+            if result.error:
+                summary += f"\n⚠️ {result.error}"
+
+            logger.info("handler.fetch_emails.success", stored=result.emails_stored)
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "fetch_result",
+                        "data": {
+                            "run_id": result.run_id,
+                            "emails_fetched": result.emails_fetched,
+                            "emails_processed": result.emails_processed,
+                            "emails_stored": result.emails_stored,
+                        },
+                    }
+                ],
+                "meta": {"run_id": result.run_id},
+            }
+        except Exception as exc:
+            logger.exception("handler.fetch_emails.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Email fetch failed: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def get_email_status(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get email fetcher status and metrics.
+
+        Params:
+            None
+        """
+        logger.info("handler.get_email_status.start")
+
+        try:
+            from app.emails.router import get_status
+
+            result = await get_status()
+            status = self._as_dict(result)
+            status = self._as_dict(result)
+            status = self._as_dict(result)
+
+            # Some routers return Pydantic models while other helpers return
+            # raw dicts. Normalize to a plain dict to make attribute access
+            # predictable and satisfy static type checkers (Pylance).
+            if isinstance(result, dict):
+                status = result
+            else:
+                # Pydantic v2+ uses model_dump(), fall back to .dict()
+                status = (
+                    result.model_dump()
+                    if hasattr(result, "model_dump")
+                    else getattr(result, "dict", lambda: {})()
+                )
+
+            summary = (
+                f"📧 **Email Fetcher Status**\n\n"
+                f"**State:**\n"
+                f"  • Running: {'Yes ✓' if status.get('running') else 'No ✗'}\n"
+                f"  • Enabled: {'Yes' if status.get('enabled') else 'No'}\n\n"
+                f"**Metrics:**\n"
+                f"  • Total runs: {status.get('aggregate_metrics', {}).get('total_runs', 0)}\n"
+                f"  • Successful: {status.get('aggregate_metrics', {}).get('successful_runs', 0)}\n"
+                f"  • Failed: {status.get('aggregate_metrics', {}).get('failed_runs', 0)}\n"
+            )
+
+            last_run = status.get("last_run") or {}
+            last_started = last_run.get("started_at")
+            if last_started:
+                summary += f"  • Last run: {last_started}\n"
+
+            logger.info("handler.get_email_status.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "email_status",
+                        "data": status,
+                    }
+                ],
+                "meta": {"running": status.get("running", False)},
+            }
+        except Exception as exc:
+            logger.exception("handler.get_email_status.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to get email status: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def start_email_fetcher(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Start the email fetcher background service.
+
+        Params:
+            None
+        """
+        logger.info("handler.start_email_fetcher.start")
+
+        try:
+            from app.emails.router import start_fetcher
+
+            result = await start_fetcher()
+
+            summary = f"✅ {result['message']}"
+
+            logger.info("handler.start_email_fetcher.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "service_control",
+                        "data": result,
+                    }
+                ],
+                "meta": result,
+            }
+        except Exception as exc:
+            logger.exception("handler.start_email_fetcher.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to start email fetcher: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def stop_email_fetcher(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Stop the email fetcher background service.
+
+        Params:
+            None
+        """
+        logger.info("handler.stop_email_fetcher.start")
+
+        try:
+            from app.emails.router import stop_fetcher
+
+            result = await stop_fetcher()
+
+            summary = f"✅ {result['message']}"
+
+            logger.info("handler.stop_email_fetcher.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "service_control",
+                        "data": result,
+                    }
+                ],
+                "meta": result,
+            }
+        except Exception as exc:
+            logger.exception("handler.stop_email_fetcher.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to stop email fetcher: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def poll_transactions(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Trigger immediate transaction polling from APIs.
+
+        Params:
+            None
+        """
+        logger.info("handler.poll_transactions.start")
+
+        try:
+            from app.transactions.router import trigger_poll
+
+            result = await trigger_poll()
+
+            summary = (
+                f"✅ Transaction poll complete!\n\n"
+                f"📊 **Results:**\n"
+                f"  • Run ID: {result.run_id}\n"
+                f"  • Status: {result.status}\n"
+                f"  • Message: {result.message}\n"
+            )
+
+            if "warning" in result.details:
+                summary += f"\n⚠️ {result.details['warning']}"
+
+            logger.info("handler.poll_transactions.success", run_id=result.run_id)
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "poll_result",
+                        "data": result.details,
+                    }
+                ],
+                "meta": {"run_id": result.run_id},
+            }
+        except Exception as exc:
+            logger.exception("handler.poll_transactions.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Transaction poll failed: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def get_transaction_status(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get transaction poller status and metrics.
+
+        Params:
+            None
+        """
+        logger.info("handler.get_transaction_status.start")
+
+        try:
+            from app.transactions.router import get_status
+
+            result = await get_status()
+            status = self._as_dict(result)
+
+            summary = (
+                f"💳 **Transaction Poller Status**\n\n"
+                f"**State:**\n"
+                f"  • Running: {'Yes ✓' if status.get('running') else 'No ✗'}\n"
+                f"  • Enabled: {'Yes' if status.get('enabled') else 'No'}\n\n"
+                f"**Circuit Breaker:**\n"
+                f"  • State: {status.get('circuit_breaker', {}).get('state', 'unknown')}\n"
+                f"  • Failures: {status.get('circuit_breaker', {}).get('failures', 0)}\n\n"
+                f"**Metrics (24h):**\n"
+                f"  • Total runs: {status.get('metrics_24h', {}).get('total_runs', 0)}\n"
+                f"  • Successful: {status.get('metrics_24h', {}).get('successful_runs', 0)}\n"
+                f"  • Failed: {status.get('metrics_24h', {}).get('failed_runs', 0)}\n"
+            )
+
+            logger.info("handler.get_transaction_status.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "transaction_status",
+                        "data": status,
+                    }
+                ],
+                "meta": {"running": status.get("running", False)},
+            }
+        except Exception as exc:
+            logger.exception("handler.get_transaction_status.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to get transaction status: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def start_transaction_poller(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Start the transaction poller background service.
+
+        Params:
+            None
+        """
+        logger.info("handler.start_transaction_poller.start")
+
+        try:
+            from app.transactions.router import start_poller
+
+            result = await start_poller()
+
+            summary = f"✅ {result['message']}"
+
+            logger.info("handler.start_transaction_poller.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "service_control",
+                        "data": result,
+                    }
+                ],
+                "meta": result,
+            }
+        except Exception as exc:
+            logger.exception("handler.start_transaction_poller.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to start transaction poller: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def stop_transaction_poller(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Stop the transaction poller background service.
+
+        Params:
+            None
+        """
+        logger.info("handler.stop_transaction_poller.start")
+
+        try:
+            from app.transactions.router import stop_poller
+
+            result = await stop_poller()
+
+            summary = f"✅ {result['message']}"
+
+            logger.info("handler.stop_transaction_poller.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "service_control",
+                        "data": result,
+                    }
+                ],
+                "meta": result,
+            }
+        except Exception as exc:
+            logger.exception("handler.stop_transaction_poller.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to stop transaction poller: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def get_workflow_policy(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get current workflow policy configuration.
+
+        Params:
+            None
+        """
+        logger.info("handler.get_workflow_policy.start")
+
+        try:
+            from app.actions.router import get_workflow_policy
+
+            result = await get_workflow_policy()
+            status = self._as_dict(result)
+
+            summary = (
+                f"⚙️ **Workflow Policy Configuration**\n\n"
+                f"**Actions for Matched Emails:**\n"
+                f"  • {', '.join(result.matched_actions)}\n\n"
+                f"**Actions for Ambiguous Matches:**\n"
+                f"  • {', '.join(result.ambiguous_actions)}\n\n"
+                f"**Actions for Unmatched Emails:**\n"
+                f"  • {', '.join(result.unmatched_actions)}\n\n"
+                f"**Actions for Review:**\n"
+                f"  • {', '.join(result.review_actions)}\n\n"
+                f"**Thresholds:**\n"
+                f"  • High confidence: {result.high_confidence_threshold:.0%}\n"
+                f"  • Low confidence: {result.low_confidence_threshold:.0%}\n"
+            )
+
+            logger.info("handler.get_workflow_policy.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "workflow_policy",
+                        "data": status,
+                    }
+                ],
+                "meta": status,
+            }
+        except Exception as exc:
+            logger.exception("handler.get_workflow_policy.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to get workflow policy: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def get_action_audits(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get action audit logs.
+
+        Params:
+            limit (optional): Number of results to return (default: 20)
+            hours (optional): Filter by last N hours
+        """
+        limit = params.get("limit", 20)
+        hours = params.get("hours")
+
+        logger.info("handler.get_action_audits.start", limit=limit, hours=hours)
+
+        try:
+            from app.actions.router import get_action_audits
+
+            result = await get_action_audits(since_hours=hours, limit=limit)
+
+            if not result:
+                summary = "✅ No action audits found."
+                artifacts = []
+            else:
+                summary = f"📋 **Action Audit Logs** (Showing {len(result)})\n\n"
+
+                for audit in result[:5]:  # Show first 5 in summary
+                    summary += (
+                        f"  • {audit.action_type} - {audit.status} "
+                        f"({audit.started_at})\n"
+                    )
+
+                if len(result) > 5:
+                    summary += f"\n  ... and {len(result) - 5} more\n"
+
+                artifacts = [
+                    {
+                        "kind": "action_audits",
+                        "data": [a.model_dump() for a in result],
+                    }
+                ]
+
+            logger.info("handler.get_action_audits.success", count=len(result))
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": artifacts,
+                "meta": {"limit": limit, "count": len(result)},
+            }
+        except Exception as exc:
+            logger.exception("handler.get_action_audits.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to get action audits: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def get_action_statistics(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get action execution statistics.
+
+        Params:
+            hours (optional): Statistics for last N hours (default: 24)
+        """
+        hours = params.get("hours", 24)
+
+        logger.info("handler.get_action_statistics.start", hours=hours)
+
+        try:
+            from app.actions.router import get_action_statistics
+
+            result = await get_action_statistics(since_hours=hours)
+            status = self._as_dict(result)
+
+            summary = (
+                f"📊 **Action Statistics** (Last {hours} hours)\n\n"
+                f"**Overall:**\n"
+                f"  • Total actions: {result.total}\n"
+                f"  • Successful: {result.success}\n"
+                f"  • Failed: {result.failed}\n"
+                f"  • Pending: {result.pending}\n\n"
+            )
+
+            if result.by_type:
+                summary += "**By Type:**\n"
+                for action_type, count in result.by_type.items():
+                    summary += f"  • {action_type}: {count}\n"
+
+            logger.info("handler.get_action_statistics.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "action_statistics",
+                        "data": status,
+                    }
+                ],
+                "meta": {"hours": hours},
+            }
+        except Exception as exc:
+            logger.exception("handler.get_action_statistics.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to get action statistics: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def get_automation_status(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get automation service status.
+
+        Params:
+            None
+        """
+        logger.info("handler.get_automation_status.start")
+
+        try:
+            from app.actions.automation_router import get_automation_status
+
+            result = await get_automation_status()
+            status = self._as_dict(result)
+
+            summary = (
+                f"🤖 **Automation Status**\n\n"
+                f"**State:**\n"
+                f"  • Running: {'Yes ✓' if status.get('running') else 'No ✗'}\n"
+                f"  • Interval: {status.get('interval_seconds', 0)}s\n"
+                f"  • Actions enabled: {'Yes' if status.get('actions_enabled') else 'No'}\n\n"
+                f"**Metrics:**\n"
+            )
+
+            for key, value in result.metrics.items():
+                summary += f"  • {key}: {value}\n"
+
+            logger.info("handler.get_automation_status.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "automation_status",
+                        "data": status,
+                    }
+                ],
+                "meta": {"running": status.get("running", False)},
+            }
+        except Exception as exc:
+            logger.exception("handler.get_automation_status.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to get automation status: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def start_automation(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Start the automation background service.
+
+        Params:
+            interval (optional): Override interval in seconds
+        """
+        interval = params.get("interval")
+
+        logger.info("handler.start_automation.start", interval=interval)
+
+        try:
+            from app.actions.automation_router import (
+                start_automation,
+                StartAutomationRequest,
+            )
+
+            request = None
+            if interval:
+                request = StartAutomationRequest(
+                    interval_seconds=interval, enable_actions=True
+                )
+
+            result = await start_automation(request)
+
+            summary = f"✅ {result['message']}"
+
+            logger.info("handler.start_automation.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "service_control",
+                        "data": result,
+                    }
+                ],
+                "meta": result,
+            }
+        except Exception as exc:
+            logger.exception("handler.start_automation.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to start automation: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def stop_automation(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Stop the automation background service.
+
+        Params:
+            None
+        """
+        logger.info("handler.stop_automation.start")
+
+        try:
+            from app.actions.automation_router import stop_automation
+
+            result = await stop_automation()
+
+            summary = f"✅ {result['message']}"
+
+            logger.info("handler.stop_automation.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "service_control",
+                        "data": result,
+                    }
+                ],
+                "meta": result,
+            }
+        except Exception as exc:
+            logger.exception("handler.stop_automation.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to stop automation: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def run_automation_once(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Run a single automation cycle manually.
+
+        Params:
+            None
+        """
+        logger.info("handler.run_automation_once.start")
+
+        try:
+            from app.actions.automation_router import run_reconciliation_once
+
+            result = await run_reconciliation_once()
+
+            summary = (
+                f"{'✅' if result.success else '⚠️'} {result.message}\n\n"
+                f"📊 **Cycle Statistics:**\n"
+            )
+
+            for key, value in result.stats.items():
+                if isinstance(value, dict):
+                    summary += f"\n**{key.replace('_', ' ').title()}:**\n"
+                    for sub_key, sub_value in value.items():
+                        summary += f"  • {sub_key}: {sub_value}\n"
+                else:
+                    summary += f"  • {key}: {value}\n"
+
+            logger.info("handler.run_automation_once.success", success=result.success)
+
+            return {
+                "status": "success" if result.success else "partial",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "automation_cycle",
+                        "data": result.stats,
+                    }
+                ],
+                "meta": {"success": result.success},
+            }
+        except Exception as exc:
+            logger.exception("handler.run_automation_once.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Automation cycle failed: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
     def _build_reconciliation_artifacts(
         self, batch_result: BatchMatchResult
     ) -> List[Dict[str, Any]]:
@@ -411,3 +1146,46 @@ def extract_rematch_flag(message: str, match: Optional[re.Match]) -> bool:
     """Detect if rematch/rerun is requested."""
     rematch_pattern = re.compile(r"\b(re-?match|re-?run|force)\b", re.IGNORECASE)
     return bool(rematch_pattern.search(message))
+
+
+def extract_hours(message: str, match: Optional[re.Match]) -> Optional[int]:
+    """Extract hours parameter from message (e.g., 'last 24 hours')."""
+    hours_pattern = re.compile(r"\b(\d+)\s*hours?\b", re.IGNORECASE)
+    match_obj = hours_pattern.search(message)
+    if match_obj:
+        return int(match_obj.group(1))
+    return None
+
+
+def extract_action_type(message: str, match: Optional[re.Match]) -> Optional[str]:
+    """Extract action type from message."""
+    # Look for known action types
+    action_types = ["email", "webhook", "log", "slack", "notification"]
+    message_lower = message.lower()
+    for action in action_types:
+        if action in message_lower:
+            return action
+    return None
+
+
+def extract_interval(message: str, match: Optional[re.Match]) -> Optional[int]:
+    """Extract interval in seconds from message (e.g., '5 minutes', '300 seconds')."""
+    # Try seconds first
+    seconds_pattern = re.compile(r"\b(\d+)\s*(?:seconds?|secs?|s)\b", re.IGNORECASE)
+    match_obj = seconds_pattern.search(message)
+    if match_obj:
+        return int(match_obj.group(1))
+
+    # Try minutes
+    minutes_pattern = re.compile(r"\b(\d+)\s*(?:minutes?|mins?|m)\b", re.IGNORECASE)
+    match_obj = minutes_pattern.search(message)
+    if match_obj:
+        return int(match_obj.group(1)) * 60
+
+    # Try hours
+    hours_pattern = re.compile(r"\b(\d+)\s*(?:hours?|hrs?|h)\b", re.IGNORECASE)
+    match_obj = hours_pattern.search(message)
+    if match_obj:
+        return int(match_obj.group(1)) * 3600
+
+    return None

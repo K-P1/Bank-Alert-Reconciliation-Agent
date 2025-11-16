@@ -96,7 +96,9 @@ class BaseRepository(Generic[ModelType]):
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def filter(self, **filters) -> List[ModelType]:
+    async def filter(
+        self, limit: Optional[int] = None, offset: Optional[int] = None, **filters
+    ) -> List[ModelType]:
         """
         Filter records by field values.
 
@@ -109,6 +111,8 @@ class BaseRepository(Generic[ModelType]):
         - field (no suffix): equal
 
         Args:
+            limit: Maximum number of records to return
+            offset: Number of records to skip
             **filters: Field name and value pairs
 
         Returns:
@@ -120,9 +124,17 @@ class BaseRepository(Generic[ModelType]):
 
             # Get logs before a certain timestamp
             await repo.filter(timestamp__lt=cutoff_date)
+
+            # Get first 10 transactions with amount > 100
+            await repo.filter(limit=10, amount__gt=100)
         """
         query = select(self.model)
         query = self._apply_filters(query, filters)
+
+        if offset is not None:
+            query = query.offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
 
         result = await self.session.execute(query)
         return list(result.scalars().all())
