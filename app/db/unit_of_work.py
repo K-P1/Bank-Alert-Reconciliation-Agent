@@ -4,14 +4,13 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import AsyncSessionLocal
-from app.db.models import Email, Transaction, Match, Log, Config, ActionAudit
+from app.db.models import Email, Transaction, Match, Log, Config
 from app.db.repositories import (
     EmailRepository,
     TransactionRepository,
     MatchRepository,
     LogRepository,
     ConfigRepository,
-    ActionAuditRepository,
 )
 
 
@@ -52,7 +51,6 @@ class UnitOfWork:
         self.matches: MatchRepository = None  # type: ignore
         self.logs: LogRepository = None  # type: ignore
         self.config: ConfigRepository = None  # type: ignore
-        self.action_audits: ActionAuditRepository = None  # type: ignore
 
     async def __aenter__(self):
         """Enter async context manager."""
@@ -66,7 +64,6 @@ class UnitOfWork:
         self.matches = MatchRepository(Match, self._session)
         self.logs = LogRepository(Log, self._session)
         self.config = ConfigRepository(Config, self._session)
-        self.action_audits = ActionAuditRepository(ActionAudit, self._session)
 
         return self
 

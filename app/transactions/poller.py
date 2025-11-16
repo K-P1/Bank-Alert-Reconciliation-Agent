@@ -417,10 +417,11 @@ class TransactionPoller:
             hours: Limit to last N hours (None = all history)
 
         Returns:
-            Metrics dictionary
+            Metrics dictionary with enabled status
         """
         aggregate = self.metrics.get_aggregate_metrics(hours)
         return {
+            "enabled": self.config.enabled,
             "aggregate": aggregate.to_dict(),
             "success_rate": self.metrics.get_success_rate(hours),
             "recent_runs": [r.to_dict() for r in self.metrics.get_history(limit=10)],

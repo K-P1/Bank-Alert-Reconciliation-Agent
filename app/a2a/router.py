@@ -23,7 +23,6 @@ from app.a2a.command_handlers import (
     extract_limit,
     extract_days,
     extract_rematch_flag,
-    extract_hours,
     extract_interval,
 )
 
@@ -37,22 +36,22 @@ def _init_command_interpreter() -> None:
     """Initialize the command interpreter with all supported commands."""
     interpreter = get_interpreter()
 
-    # Register: reconcile_now
+    # Register: match_now (renamed from reconcile_now)
     interpreter.register_command(
-        name="reconcile_now",
+        name="match_now",
         patterns=[
-            r"\breconcile\b",
-            r"\brun\s+(the\s+)?reconciliation\b",
-            r"\bmatch\s+(emails?|alerts?)\b",
+            r"\bmatch\s+(now|emails?|alerts?)\b",
+            r"\brun\s+(the\s+)?matching\b",
             r"\bstart\s+matching\b",
             r"\bprocess\s+(emails?|alerts?)\b",
+            r"\breconcile\b",
         ],
         handler=None,  # Will be set at runtime with db session
-        description="Run reconciliation immediately to match bank alerts with transactions",
+        description="Run matching immediately to match bank alerts with transactions",
         examples=[
-            "run reconciliation",
-            "reconcile now",
-            "match 50 emails",
+            "match now",
+            "match emails",
+            "run matching",
             "process alerts",
         ],
         param_extractors={"limit": extract_limit, "rematch": extract_rematch_flag},
@@ -63,8 +62,6 @@ def _init_command_interpreter() -> None:
         name="show_summary",
         patterns=[
             r"\bshow\s+(me\s+)?(the\s+)?summary\b",
-            r"\b(get|give)\s+(me\s+)?(the\s+)?status\b",
-            r"\bwhat.?s\s+the\s+status\b",
             r"\boverview\b",
             r"\bdashboard\b",
         ],
@@ -72,9 +69,8 @@ def _init_command_interpreter() -> None:
         description="Display summary of matched and unmatched emails",
         examples=[
             "show summary",
-            "give me the status",
-            "what's the status",
             "show me the overview",
+            "dashboard",
         ],
         param_extractors={"days": extract_days},
     )
@@ -95,36 +91,15 @@ def _init_command_interpreter() -> None:
             "list unmatched",
             "show unmatched emails",
             "pending alerts",
-            "what's unmatched",
         ],
         param_extractors={"limit": extract_limit},
     )
 
-    # Register: get_confidence_report
+    # Register: fetch_emails_now (renamed from fetch_emails)
     interpreter.register_command(
-        name="get_confidence_report",
+        name="fetch_emails_now",
         patterns=[
-            r"\bconfidence\s+report\b",
-            r"\baccuracy\s+(report|stats?)\b",
-            r"\bshow\s+(me\s+)?(the\s+)?metrics\b",
-            r"\bhow\s+(accurate|well)\b",
-            r"\bperformance\s+report\b",
-        ],
-        handler=None,
-        description="Generate confidence and accuracy report for recent matches",
-        examples=[
-            "get confidence report",
-            "show accuracy stats",
-            "how accurate are we",
-            "performance report",
-        ],
-        param_extractors={"days": extract_days},
-    )
-
-    # Register: fetch_emails
-    interpreter.register_command(
-        name="fetch_emails",
-        patterns=[
+            r"\bfetch\s+(emails?|alerts?)\s+now\b",
             r"\bfetch\s+(emails?|alerts?)\b",
             r"\bget\s+(new\s+)?(emails?|alerts?)\b",
             r"\bcheck\s+(for\s+)?(new\s+)?(emails?|alerts?)\b",
@@ -132,219 +107,51 @@ def _init_command_interpreter() -> None:
             r"\bpull\s+(emails?|alerts?)\b",
         ],
         handler=None,
-        description="Fetch new emails from IMAP server",
+        description="Fetch new emails from IMAP server immediately",
         examples=[
-            "fetch emails",
+            "fetch emails now",
             "get new alerts",
             "check for new emails",
-            "retrieve emails",
         ],
     )
 
-    # Register: get_email_status
+    # Register: fetch_transactions_now (renamed from poll_transactions)
     interpreter.register_command(
-        name="get_email_status",
+        name="fetch_transactions_now",
         patterns=[
-            r"\bemail\s+(fetcher\s+)?status\b",
-            r"\bcheck\s+email\s+service\b",
-            r"\bemail\s+fetcher\s+state\b",
-            r"\bis\s+email\s+fetcher\s+running\b",
-        ],
-        handler=None,
-        description="Get email fetcher status and metrics",
-        examples=[
-            "email status",
-            "check email service",
-            "is email fetcher running",
-        ],
-    )
-
-    # Register: start_email_fetcher
-    interpreter.register_command(
-        name="start_email_fetcher",
-        patterns=[
-            r"\bstart\s+email\s+fetcher\b",
-            r"\benable\s+email\s+(fetching|polling)\b",
-            r"\bturn\s+on\s+email\s+service\b",
-            r"\bactivate\s+email\s+fetcher\b",
-        ],
-        handler=None,
-        description="Start the email fetcher background service",
-        examples=[
-            "start email fetcher",
-            "enable email fetching",
-            "turn on email service",
-        ],
-    )
-
-    # Register: stop_email_fetcher
-    interpreter.register_command(
-        name="stop_email_fetcher",
-        patterns=[
-            r"\bstop\s+email\s+fetcher\b",
-            r"\bdisable\s+email\s+(fetching|polling)\b",
-            r"\bturn\s+off\s+email\s+service\b",
-            r"\bdeactivate\s+email\s+fetcher\b",
-        ],
-        handler=None,
-        description="Stop the email fetcher background service",
-        examples=[
-            "stop email fetcher",
-            "disable email fetching",
-            "turn off email service",
-        ],
-    )
-
-    # Register: poll_transactions
-    interpreter.register_command(
-        name="poll_transactions",
-        patterns=[
-            r"\bpoll\s+transactions?\b",
+            r"\bfetch\s+transactions?\s+now\b",
             r"\bfetch\s+transactions?\b",
+            r"\bpoll\s+transactions?\b",
             r"\bget\s+(new\s+)?transactions?\b",
             r"\bretrieve\s+transactions?\b",
             r"\bcheck\s+(for\s+)?(new\s+)?transactions?\b",
         ],
         handler=None,
-        description="Fetch new transactions from API",
+        description="Fetch new transactions from API immediately",
         examples=[
+            "fetch transactions now",
             "poll transactions",
-            "fetch transactions",
             "get new transactions",
-            "check for transactions",
         ],
     )
 
-    # Register: get_transaction_status
+    # Register: get_status (renamed from get_automation_status)
     interpreter.register_command(
-        name="get_transaction_status",
+        name="get_status",
         patterns=[
-            r"\btransaction\s+(poller\s+)?status\b",
-            r"\bcheck\s+transaction\s+service\b",
-            r"\btransaction\s+poller\s+state\b",
-            r"\bis\s+transaction\s+poller\s+running\b",
-        ],
-        handler=None,
-        description="Get transaction poller status and metrics",
-        examples=[
-            "transaction status",
-            "check transaction service",
-            "is transaction poller running",
-        ],
-    )
-
-    # Register: start_transaction_poller
-    interpreter.register_command(
-        name="start_transaction_poller",
-        patterns=[
-            r"\bstart\s+transaction\s+poller\b",
-            r"\benable\s+transaction\s+(fetching|polling)\b",
-            r"\bturn\s+on\s+transaction\s+service\b",
-            r"\bactivate\s+transaction\s+poller\b",
-        ],
-        handler=None,
-        description="Start the transaction poller background service",
-        examples=[
-            "start transaction poller",
-            "enable transaction polling",
-            "turn on transaction service",
-        ],
-    )
-
-    # Register: stop_transaction_poller
-    interpreter.register_command(
-        name="stop_transaction_poller",
-        patterns=[
-            r"\bstop\s+transaction\s+poller\b",
-            r"\bdisable\s+transaction\s+(fetching|polling)\b",
-            r"\bturn\s+off\s+transaction\s+service\b",
-            r"\bdeactivate\s+transaction\s+poller\b",
-        ],
-        handler=None,
-        description="Stop the transaction poller background service",
-        examples=[
-            "stop transaction poller",
-            "disable transaction polling",
-            "turn off transaction service",
-        ],
-    )
-
-    # Register: get_workflow_policy
-    interpreter.register_command(
-        name="get_workflow_policy",
-        patterns=[
-            r"\bworkflow\s+policy\b",
-            r"\baction\s+policy\b",
-            r"\bget\s+(workflow\s+)?configuration\b",
-            r"\bshow\s+(workflow\s+)?rules\b",
-            r"\bwhat\s+actions\s+are\s+configured\b",
-        ],
-        handler=None,
-        description="Get current workflow policy configuration",
-        examples=[
-            "workflow policy",
-            "show workflow rules",
-            "get configuration",
-            "what actions are configured",
-        ],
-    )
-
-    # Register: get_action_audits
-    interpreter.register_command(
-        name="get_action_audits",
-        patterns=[
-            r"\baction\s+audits?\b",
-            r"\bshow\s+action\s+(logs?|history)\b",
-            r"\blist\s+actions?\s+(executed|performed)\b",
-            r"\baction\s+execution\s+history\b",
-        ],
-        handler=None,
-        description="Get action audit logs with execution history",
-        examples=[
-            "action audits",
-            "show action logs",
-            "list actions executed",
-            "action history",
-        ],
-        param_extractors={"limit": extract_limit, "hours": extract_hours},
-    )
-
-    # Register: get_action_statistics
-    interpreter.register_command(
-        name="get_action_statistics",
-        patterns=[
-            r"\baction\s+statistics\b",
-            r"\baction\s+stats\b",
-            r"\baction\s+metrics\b",
-            r"\baction\s+performance\b",
-            r"\bhow\s+many\s+actions\b",
-        ],
-        handler=None,
-        description="Get action execution statistics",
-        examples=[
-            "action statistics",
-            "action stats",
-            "action metrics",
-            "how many actions executed",
-        ],
-        param_extractors={"hours": extract_hours},
-    )
-
-    # Register: get_automation_status
-    interpreter.register_command(
-        name="get_automation_status",
-        patterns=[
+            r"\b(get|give)\s+(me\s+)?(the\s+)?status\b",
+            r"\bwhat.?s\s+the\s+status\b",
+            r"\bstatus\b",
+            r"\bcheck\s+status\b",
             r"\bautomation\s+status\b",
-            r"\bcheck\s+automation\b",
             r"\bis\s+automation\s+running\b",
-            r"\bautomation\s+state\b",
         ],
         handler=None,
-        description="Get automation service status and metrics",
+        description="Get system status and automation state",
         examples=[
-            "automation status",
-            "check automation",
-            "is automation running",
+            "get status",
+            "what's the status",
+            "check status",
         ],
     )
 
@@ -356,7 +163,7 @@ def _init_command_interpreter() -> None:
             r"\benable\s+automation\b",
             r"\bturn\s+on\s+automation\b",
             r"\bactivate\s+automation\b",
-            r"\bbegin\s+auto(mated)?\s+reconciliation\b",
+            r"\bbegin\s+auto(mated)?\s+(matching|reconciliation)\b",
         ],
         handler=None,
         description="Start the automation background service",
@@ -364,7 +171,6 @@ def _init_command_interpreter() -> None:
             "start automation",
             "enable automation",
             "turn on automation",
-            "begin automated reconciliation",
         ],
         param_extractors={"interval": extract_interval},
     )
@@ -377,7 +183,7 @@ def _init_command_interpreter() -> None:
             r"\bdisable\s+automation\b",
             r"\bturn\s+off\s+automation\b",
             r"\bdeactivate\s+automation\b",
-            r"\bhalt\s+auto(mated)?\s+reconciliation\b",
+            r"\bhalt\s+auto(mated)?\s+(matching|reconciliation)\b",
         ],
         handler=None,
         description="Stop the automation background service",
@@ -388,23 +194,59 @@ def _init_command_interpreter() -> None:
         ],
     )
 
-    # Register: run_automation_once
+    # Register: show_metrics
     interpreter.register_command(
-        name="run_automation_once",
+        name="show_metrics",
         patterns=[
-            r"\brun\s+automation\s+once\b",
-            r"\bmanual\s+automation\s+(run|cycle)\b",
-            r"\brun\s+(full\s+)?reconciliation\s+cycle\b",
-            r"\bexecute\s+complete\s+workflow\b",
-            r"\bdo\s+one\s+automation\s+cycle\b",
+            r"\bshow\s+(me\s+)?(the\s+)?metrics\b",
+            r"\bmetrics\b",
+            r"\bperformance\b",
+            r"\bstatistics\b",
         ],
         handler=None,
-        description="Run a single complete automation cycle manually",
+        description="Display system metrics and performance statistics",
         examples=[
-            "run automation once",
-            "run full reconciliation cycle",
-            "execute complete workflow",
-            "manual automation run",
+            "show metrics",
+            "metrics",
+            "performance",
+        ],
+        param_extractors={"days": extract_days},
+    )
+
+    # Register: show_logs
+    interpreter.register_command(
+        name="show_logs",
+        patterns=[
+            r"\bshow\s+(me\s+)?(the\s+)?logs?\b",
+            r"\blogs?\b",
+            r"\brecent\s+logs?\b",
+            r"\bview\s+logs?\b",
+        ],
+        handler=None,
+        description="Display recent system logs",
+        examples=[
+            "show logs",
+            "logs",
+            "view logs",
+        ],
+        param_extractors={"limit": extract_limit},
+    )
+
+    # Register: manual_match
+    interpreter.register_command(
+        name="manual_match",
+        patterns=[
+            r"\bmanual\s+match\b",
+            r"\bmatch\s+manually\b",
+            r"\bforce\s+match\b",
+            r"\blink\s+(email|alert)\s+(to|with)\s+transaction\b",
+        ],
+        handler=None,
+        description="Manually match an email with a transaction",
+        examples=[
+            "manual match",
+            "match manually",
+            "force match email 123 to transaction 456",
         ],
     )
 
@@ -871,27 +713,23 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
             "a2a.execute.start", request_id=req.id, action=action, params=params
         )
 
-        # Import automation
-        from app.actions.automation import get_automation
+        # Import automation (unified service)
+        from app.core.automation import get_automation_service
 
-        automation = get_automation()
+        automation = get_automation_service()
 
         try:
             # Handle automation control commands
             if action == "start_automation":
                 # Start background automation
                 interval = params.get("interval_seconds", 900)  # Default 15 min
-                enable_actions = params.get("enable_actions", True)
 
                 if automation._running:
                     message_text = "⚠️ **Automation already running**\n\n"
                     message_text += (
                         f"**Current interval:** {automation.interval_seconds}s\n"
                     )
-                    message_text += (
-                        f"**Actions enabled:** {automation.enable_actions}\n"
-                    )
-                    message_text += f"**Total runs:** {automation.total_runs}\n"
+                    message_text += f"**Total cycles:** {automation.total_cycles}\n"
 
                     result = Message(
                         parts=[
@@ -905,18 +743,15 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
                 # Update configuration if provided
                 if interval:
                     automation.interval_seconds = interval
-                automation.enable_actions = enable_actions
 
                 await automation.start()
 
                 message_text = "✅ **Automation started successfully!**\n\n"
-                message_text += f"**Interval:** Every {automation.interval_seconds}s ({automation.interval_seconds // 60} minutes)\n"
-                message_text += f"**Actions:** {'Enabled' if automation.enable_actions else 'Disabled'}\n\n"
+                message_text += f"**Interval:** Every {automation.interval_seconds}s ({automation.interval_seconds // 60} minutes)\n\n"
                 message_text += "The system will now automatically:\n"
                 message_text += "  1. Fetch new emails\n"
                 message_text += "  2. Poll new transactions\n"
                 message_text += "  3. Match unprocessed emails\n"
-                message_text += "  4. Execute post-processing actions\n"
 
                 result = Message(
                     parts=[
@@ -948,9 +783,9 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
                 await automation.stop()
 
                 message_text = "🛑 **Automation stopped**\n\n"
-                message_text += f"**Total runs completed:** {automation.total_runs}\n"
-                message_text += f"**Successful:** {automation.successful_runs}\n"
-                message_text += f"**Failed:** {automation.failed_runs}\n"
+                message_text += f"**Total cycles:** {automation.total_cycles}\n"
+                message_text += f"**Successful:** {automation.successful_cycles}\n"
+                message_text += f"**Failed:** {automation.failed_cycles}\n"
 
                 result = Message(
                     parts=[
@@ -968,34 +803,19 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
 
                 if status["running"]:
                     message_text = "✅ **Automation is RUNNING**\n\n"
-                    message_text += f"**Interval:** {status['interval_seconds']}s ({status['interval_seconds'] // 60} min)\n"
-                    message_text += f"**Actions:** {'Enabled' if status['actions_enabled'] else 'Disabled'}\n\n"
+                    message_text += f"**Interval:** {status['interval_seconds']}s ({status['interval_seconds'] // 60} min)\n\n"
                     message_text += "**Statistics:**\n"
-                    message_text += (
-                        f"  • Total runs: {status['metrics']['total_runs']}\n"
-                    )
-                    message_text += (
-                        f"  • Successful: {status['metrics']['successful_runs']}\n"
-                    )
-                    message_text += f"  • Failed: {status['metrics']['failed_runs']}\n"
-                    if status["metrics"]["last_run_at"]:
+                    message_text += f"  • Total cycles: {status['cycles_completed']}\n"
+                    message_text += f"  • Errors: {status['errors_count']}\n"
+                    if status.get("last_cycle"):
                         message_text += (
-                            f"  • Last run: {status['metrics']['last_run_at']}\n"
+                            f"  • Last cycle: {status['last_cycle']['timestamp']}\n"
                         )
-                        if status["metrics"]["last_run_stats"]:
-                            stats = status["metrics"]["last_run_stats"]
-                            message_text += f"  • Last run: {stats.get('emails_matched', 0)} emails, {stats.get('actions_executed', 0)} actions\n"
+                        message_text += f"  • Success rate: {status['last_cycle']['success_rate']:.1f}%\n"
                 else:
                     message_text = "⚪ **Automation is STOPPED**\n\n"
-                    message_text += (
-                        f"**Total runs:** {status['metrics']['total_runs']}\n"
-                    )
-                    message_text += (
-                        f"**Successful:** {status['metrics']['successful_runs']}\n"
-                    )
-                    message_text += (
-                        f"**Failed:** {status['metrics']['failed_runs']}\n\n"
-                    )
+                    message_text += f"**Total cycles:** {status['cycles_completed']}\n"
+                    message_text += f"**Errors:** {status['errors_count']}\n\n"
                     message_text += (
                         "Use `start_automation` to begin automatic reconciliation.\n"
                     )
@@ -1022,7 +842,7 @@ async def a2a_endpoint(request: Request, agent_name: str, db: AsyncSession = Dep
                 resp = JSONRPCResponse(id=req.id, result=result)
 
                 # Execute cycle
-                stats = await automation.run_once()
+                stats = await automation.run_cycle()
 
                 success = len(stats.get("errors", [])) == 0
 

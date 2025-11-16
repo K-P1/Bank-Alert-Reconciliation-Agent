@@ -58,6 +58,7 @@ async def request_id_middleware(request: Request, call_next):  # type: ignore[no
         request_id=request_id, path=str(request.url.path)
     )
 
+    response = None
     try:
         response = await call_next(request)
     finally:
@@ -66,10 +67,11 @@ async def request_id_middleware(request: Request, call_next):  # type: ignore[no
         logger.info(
             "request.completed",
             method=request.method,
-            status=getattr(response, "status_code", 0),
+            status=getattr(response, "status_code", 0) if response else 500,
             duration_ms=duration_ms,
         )
         structlog.contextvars.clear_contextvars()
 
-    response.headers["x-request-id"] = request_id
+    if response:
+        response.headers["x-request-id"] = request_id
     return response

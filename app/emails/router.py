@@ -166,59 +166,10 @@ async def trigger_fetch():
     return FetchResponse(**result)
 
 
-@router.get("/status", response_model=StatusResponse, status_code=status.HTTP_200_OK)
-async def get_status():
-    """Get email fetcher status and metrics.
-
-    Returns:
-        Status and metrics
-    """
-    if not _fetcher:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Email fetcher not initialized",
-        )
-
-    status_data = _fetcher.get_status()
-    return StatusResponse(**status_data)
+# Individual status removed - use unified /automation/status instead
 
 
-@router.post("/start", status_code=status.HTTP_200_OK)
-async def start_fetcher():
-    """Start the email fetcher background service.
-
-    Returns:
-        Success message
-    """
-    if not _fetcher:
-        logger.error("[EMAILS] Start requested but fetcher not initialized")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Email fetcher not initialized",
-        )
-
-    logger.info("[EMAILS] Starting email fetcher via API")
-    await _fetcher.start()
-    return {"status": "started", "message": "Email fetcher started"}
-
-
-@router.post("/stop", status_code=status.HTTP_200_OK)
-async def stop_fetcher():
-    """Stop the email fetcher background service.
-
-    Returns:
-        Success message
-    """
-    if not _fetcher:
-        logger.error("[EMAILS] Stop requested but fetcher not initialized")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Email fetcher not initialized",
-        )
-
-    logger.info("[EMAILS] Stopping email fetcher via API")
-    await _fetcher.stop()
-    return {"status": "stopped", "message": "Email fetcher stopped"}
+# Individual start/stop removed - use unified /automation/start and /automation/stop instead
 
 
 @router.get("/metrics", status_code=status.HTTP_200_OK)
@@ -226,17 +177,28 @@ async def get_metrics():
     """Get detailed metrics from recent fetch runs.
 
     Returns:
-        Recent run metrics
+        Recent run metrics or disabled status if fetcher not initialized
     """
     if not _fetcher:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Email fetcher not initialized",
-        )
+        # Return disabled status instead of 503 error
+        return {
+            "enabled": False,
+            "message": "Email fetcher not initialized (IMAP settings not configured)",
+            "recent_runs": [],
+            "aggregate": {
+                "total_runs": 0,
+                "successful_runs": 0,
+                "failed_runs": 0,
+                "total_emails_fetched": 0,
+                "total_emails_stored": 0,
+                "average_duration_seconds": 0,
+            },
+        }
 
     recent_runs = _fetcher.metrics.get_recent_runs(count=10)
 
     return {
+        "enabled": True,
         "recent_runs": [
             {
                 "run_id": run.run_id,
