@@ -45,6 +45,7 @@ class PollerStatusResponse(BaseModel):
 class MetricsResponse(BaseModel):
     """Response for metrics endpoint."""
 
+    enabled: bool
     aggregate: Dict[str, Any]
     success_rate: float
     recent_runs: list[Dict[str, Any]]
@@ -111,19 +112,7 @@ async def trigger_poll():
         )
 
 
-@router.get("/status", response_model=PollerStatusResponse)
-async def get_status():
-    """
-    Get current poller status and recent metrics.
-
-    Returns:
-        - Poller state (running, enabled)
-        - Circuit breaker state
-        - Current and last run details
-        - 24-hour aggregate metrics
-    """
-    poller = get_poller()
-    return poller.get_status()
+# Individual status removed - use unified /automation/status instead
 
 
 @router.get("/metrics", response_model=MetricsResponse)
@@ -141,33 +130,8 @@ async def get_metrics(hours: Optional[int] = None):
     return poller.get_metrics(hours=hours)
 
 
-@router.post("/start")
-async def start_poller():
-    """
-    Start the polling loop.
-
-    The poller will begin running on its configured interval.
-    """
-    poller = get_poller()
-
-    if poller._running:
-        return {"status": "already_running", "message": "Poller is already running"}
-
-    await poller.start()
-    return {"status": "started", "message": "Poller started successfully"}
+# Individual start/stop removed - use unified /automation/start and /automation/stop instead
 
 
-@router.post("/stop")
-async def stop_poller():
-    """
-    Stop the polling loop.
-
-    The poller will complete any current run and then stop.
-    """
-    poller = get_poller()
-
-    if not poller._running:
-        return {"status": "not_running", "message": "Poller is not running"}
-
-    await poller.stop()
-    return {"status": "stopped", "message": "Poller stopped successfully"}
+# Export poller for automation system
+_poller = get_poller()

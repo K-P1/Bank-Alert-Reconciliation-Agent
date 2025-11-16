@@ -12,7 +12,14 @@ from app.normalization.banks import BANK_MAPPINGS
 
 # Build sender whitelist from all bank domains
 def _build_sender_whitelist() -> list[str]:
-    """Build sender whitelist from all bank domains in BANK_MAPPINGS."""
+    """Build sender whitelist from all bank domains in BANK_MAPPINGS.
+
+    Automatically generates a list of trusted email domains from the centralized
+    bank mappings. Includes both @domain.com and domain.com formats for flexibility.
+
+    Returns:
+        Sorted list of unique domain patterns for email filtering
+    """
     domains = []
     for bank_info in BANK_MAPPINGS.values():
         for domain in bank_info["domains"]:
@@ -175,7 +182,17 @@ class EmailConfig(BaseModel):
 
     @classmethod
     def from_settings(cls, settings) -> EmailConfig:
-        """Create EmailConfig from app settings."""
+        """Create EmailConfig from app settings.
+
+        Dynamically configures LLM settings based on environment variables.
+        Disables LLM if no API key is provided.
+
+        Args:
+            settings: Application settings instance
+
+        Returns:
+            Configured EmailConfig instance
+        """
         llm_config = LLMConfig(
             enabled=settings.GROQ_API_KEY is not None,
             provider="groq",

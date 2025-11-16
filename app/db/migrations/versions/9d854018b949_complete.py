@@ -1,8 +1,8 @@
-"""Initial migration with all models
+"""complete
 
-Revision ID: c0a0c074cf92
+Revision ID: 9d854018b949
 Revises:
-Create Date: 2025-11-04 14:43:54.573587
+Create Date: 2025-11-09 12:08:59.126736
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "c0a0c074cf92"
+revision: str = "9d854018b949"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -159,6 +159,18 @@ def upgrade() -> None:
             sa.Numeric(precision=5, scale=4),
             nullable=True,
             comment="Confidence score for parsing accuracy (0-1)",
+        ),
+        sa.Column(
+            "confidence",
+            sa.Numeric(precision=5, scale=4),
+            nullable=True,
+            comment="Alias for parsing_confidence (for compatibility)",
+        ),
+        sa.Column(
+            "parsing_method",
+            sa.String(length=50),
+            nullable=True,
+            comment="Parsing method used (llm, regex, hybrid)",
         ),
         sa.Column(
             "is_processed",
@@ -491,7 +503,7 @@ def upgrade() -> None:
             "status",
             sa.String(length=50),
             nullable=False,
-            comment="Match status (e.g., 'pending', 'confirmed', 'rejected', 'review')",
+            comment="Match status: 'matched' (auto-accepted), 'review' (needs manual review), 'rejected' (below threshold), 'no_candidates' (no matches found), 'pending' (not yet processed)",
         ),
         sa.Column(
             "reviewed_by",
@@ -543,11 +555,221 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_matches_transaction_id"), "matches", ["transaction_id"], unique=False
     )
+    op.create_table(
+        "action_audits",
+        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column(
+            "action_id",
+            sa.String(length=100),
+            nullable=False,
+            comment="Unique identifier for this action",
+        ),
+        sa.Column(
+            "action_type",
+            sa.String(length=50),
+            nullable=False,
+            comment="Type of action (e.g., 'mark_verified', 'create_ticket')",
+        ),
+        sa.Column(
+            "match_id",
+            sa.Integer(),
+            nullable=False,
+            comment="Reference to the match record",
+        ),
+        sa.Column(
+            "email_id",
+            sa.Integer(),
+            nullable=False,
+            comment="Reference to the email record",
+        ),
+        sa.Column(
+            "transaction_id",
+            sa.Integer(),
+            nullable=True,
+            comment="Reference to the transaction record (if applicable)",
+        ),
+        sa.Column(
+            "match_status",
+            sa.String(length=50),
+            nullable=False,
+            comment="Match status at time of action",
+        ),
+        sa.Column(
+            "match_confidence",
+            sa.Numeric(precision=5, scale=4),
+            nullable=False,
+            comment="Match confidence at time of action",
+        ),
+        sa.Column(
+            "match_outcome",
+            sa.String(length=50),
+            nullable=False,
+            comment="Match outcome category (matched, ambiguous, unmatched, review)",
+        ),
+        sa.Column(
+            "status",
+            sa.String(length=50),
+            nullable=False,
+            comment="Action execution status (pending, success, failed, etc.)",
+        ),
+        sa.Column(
+            "outcome",
+            sa.String(length=100),
+            nullable=False,
+            comment="Brief outcome description",
+        ),
+        sa.Column(
+            "message",
+            sa.Text(),
+            nullable=True,
+            comment="Detailed message or error description",
+        ),
+        sa.Column(
+            "error", sa.Text(), nullable=True, comment="Error message if action failed"
+        ),
+        sa.Column(
+            "action_metadata",
+            sa.Text(),
+            nullable=True,
+            comment="JSON blob with action-specific metadata",
+        ),
+        sa.Column(
+            "action_payload",
+            sa.Text(),
+            nullable=True,
+            comment="JSON blob with action payload (e.g., webhook body, ticket details)",
+        ),
+        sa.Column(
+            "actor",
+            sa.String(length=255),
+            nullable=False,
+            comment="Actor that triggered the action (system, user ID, service name)",
+        ),
+        sa.Column(
+            "started_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            comment="When action execution started",
+        ),
+        sa.Column(
+            "completed_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+            comment="When action execution completed",
+        ),
+        sa.Column(
+            "duration_ms",
+            sa.Integer(),
+            nullable=True,
+            comment="Action execution duration in milliseconds",
+        ),
+        sa.Column(
+            "retry_count",
+            sa.Integer(),
+            nullable=False,
+            comment="Number of retry attempts",
+        ),
+        sa.Column(
+            "is_retried",
+            sa.Boolean(),
+            nullable=False,
+            comment="Whether this action was retried",
+        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["email_id"], ["emails.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["match_id"], ["matches.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["transaction_id"], ["transactions.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_action_audit_actor", "action_audits", ["actor", "started_at"], unique=False
+    )
+    op.create_index(
+        "idx_action_audit_match",
+        "action_audits",
+        ["match_id", "action_type"],
+        unique=False,
+    )
+    op.create_index(
+        "idx_action_audit_outcome",
+        "action_audits",
+        ["match_outcome", "action_type"],
+        unique=False,
+    )
+    op.create_index(
+        "idx_action_audit_status",
+        "action_audits",
+        ["status", "started_at"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_action_audits_action_id"), "action_audits", ["action_id"], unique=True
+    )
+    op.create_index(
+        op.f("ix_action_audits_action_type"),
+        "action_audits",
+        ["action_type"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_action_audits_actor"), "action_audits", ["actor"], unique=False
+    )
+    op.create_index(
+        op.f("ix_action_audits_email_id"), "action_audits", ["email_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_action_audits_match_id"), "action_audits", ["match_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_action_audits_match_outcome"),
+        "action_audits",
+        ["match_outcome"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_action_audits_match_status"),
+        "action_audits",
+        ["match_status"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_action_audits_started_at"),
+        "action_audits",
+        ["started_at"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_action_audits_status"), "action_audits", ["status"], unique=False
+    )
+    op.create_index(
+        op.f("ix_action_audits_transaction_id"),
+        "action_audits",
+        ["transaction_id"],
+        unique=False,
+    )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f("ix_action_audits_transaction_id"), table_name="action_audits")
+    op.drop_index(op.f("ix_action_audits_status"), table_name="action_audits")
+    op.drop_index(op.f("ix_action_audits_started_at"), table_name="action_audits")
+    op.drop_index(op.f("ix_action_audits_match_status"), table_name="action_audits")
+    op.drop_index(op.f("ix_action_audits_match_outcome"), table_name="action_audits")
+    op.drop_index(op.f("ix_action_audits_match_id"), table_name="action_audits")
+    op.drop_index(op.f("ix_action_audits_email_id"), table_name="action_audits")
+    op.drop_index(op.f("ix_action_audits_actor"), table_name="action_audits")
+    op.drop_index(op.f("ix_action_audits_action_type"), table_name="action_audits")
+    op.drop_index(op.f("ix_action_audits_action_id"), table_name="action_audits")
+    op.drop_index("idx_action_audit_status", table_name="action_audits")
+    op.drop_index("idx_action_audit_outcome", table_name="action_audits")
+    op.drop_index("idx_action_audit_match", table_name="action_audits")
+    op.drop_index("idx_action_audit_actor", table_name="action_audits")
+    op.drop_table("action_audits")
     op.drop_index(op.f("ix_matches_transaction_id"), table_name="matches")
     op.drop_index(op.f("ix_matches_status"), table_name="matches")
     op.drop_index(op.f("ix_matches_matched"), table_name="matches")

@@ -126,8 +126,8 @@ class TestCommandInterpreter:
         """Test help text generation."""
         help_text = interpreter.get_help_text()
         assert "BARA" in help_text
-        assert "/test reconcile" in help_text.lower() or "/Test Reconcile" in help_text
-        assert "/test summary" in help_text.lower() or "/Test Summary" in help_text
+        assert "reconcile the last 100 emails" in help_text
+        assert "show me the summary" in help_text
         assert "help" in help_text.lower()
 
 

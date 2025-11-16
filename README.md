@@ -1,426 +1,508 @@
-# Bank Alert Reconciliation Agent (BARA)
+# Bank Alert Reconciliation Agent (BARA) v3.0
 
-A production‑oriented service that ingests bank alert emails, normalizes and enriches them, polls external transaction sources, and reconciles matches automatically via a configurable matching engine. It exposes a Telex‑compatible JSON‑RPC A2A endpoint with **natural language command support** and REST endpoints for worker management.
+## BARA Core Specification Compliant
 
-Status: Work‑in‑progress (Stages 1–6.5 complete, further stages planned). This README will evolve as new stages land.
+BARA is a production-grade reconciliation service for Nigerian banking that automatically matches bank alert emails with transaction API data using a sophisticated rule-based matching engine.
 
-## ✨ New in Stage 6.5: Natural Language Commands
+## 🎯 System Overview
 
-BARA now understands plain English! Chat with it naturally through Telex:
+**Current Version:** 3.0.0 (BARA Core)  
+**Status:** Production Ready  
+**Compliance:** BARA Core Specification (12 Commands)  
+**Architecture:** Unified Automation System
 
-- **"run reconciliation"** → Triggers matching
-- **"show summary"** → Displays stats
-- **"list unmatched"** → Shows pending alerts
-- **"get confidence report"** → Performance metrics
-- **"help"** → Lists all commands
+### Key Features
 
-**Key Features:**
+- ✅ **Email Ingestion:** IMAP-based fetching with whitelist filtering (118+ Nigerian banks)
+- ✅ **Hybrid Parsing:** Rule-based → LLM (Groq) → Regex fallback for resilience
+- ✅ **Transaction Polling:** Async API clients with retry policies and circuit breakers
+- ✅ **7-Rule Matching Engine:** Weighted scoring (exact, fuzzy, temporal) with confidence ratings
+- ✅ **Telex A2A Integration:** JSON-RPC 2.0 protocol with natural language command interface
+- ✅ **Unified Automation:** Single orchestration service (email fetch + transaction poll + matching)
+- ✅ **Simplified REST API:** 11 endpoints for direct service control
 
-- 🚀 <100ms response time
-- 🎯 98%+ recognition accuracy
-- 🔒 Zero LLM/API dependencies (regex-based)
-- 🔄 Full backward compatibility with structured JSON-RPC
+## 📊 Architecture
 
-No JSON structures to memorize—just type what you need! See [Stage 6.5 Completion](docs/Stage-6.5-Completion.md) and [Telex Workflow](docs/Telex-BARA-Workflow.md) for details.
+### Core Components
 
-## Table of contents
+1. **Email Ingestion Pipeline** (`app/emails/`)
 
-- Overview and goals
-- Architecture at a glance
-- What’s implemented so far (by stage)
-- Project layout and folder guide
-- Getting started (uv) — Windows PowerShell
-- Configuration
-- Database, migrations, and seed data
-- Running the app
-- Background workers (poller, email fetcher)
-- Testing, linting, and formatting
-- Docker
-- Bank mappings maintenance
-- Roadmap and next steps
-- License
+   - IMAP connector with bank whitelist filtering
+   - Hybrid parser (rules → LLM → regex)
+   - Background fetcher service
+   - Metrics tracking
 
-## Overview and goals
+2. **Transaction Polling** (`app/transactions/`)
 
-The Bank Alert Reconciliation Agent ingests transactional signals (bank alert emails and API‑polled transactions), transforms them into a canonical form, and reconciles them using an extensible rule‑based matching engine. Primary goals:
+   - Pluggable client architecture (mock/real API)
+   - Resilient polling with exponential backoff
+   - Circuit breaker for API protection
+   - Metrics tracking
 
-- High‑quality normalization and enrichment tailored to the Nigerian banking ecosystem
-- Efficient reconciliation with transparent scoring and metrics
-- Operational readiness (logging, health checks, metrics, CI hooks)
-- Clear extension points for new sources, rules, and data models
+3. **Matching Engine** (`app/matching/`)
 
-## Architecture at a glance
+   - 7 weighted rules (amount, reference, timestamp, description, currency, bank)
+   - Fuzzy matching (rapidfuzz: Levenshtein + token_sort_ratio)
+   - Candidate retrieval (composite key + range fallback)
+   - Confidence scoring (0.0-1.0 scale)
 
-- Ingestion
-  - IMAP email fetcher → hybrid parser (rules + LLM + regex fallback)
-  - Transaction poller → external API clients (mock in dev)
-- Normalization & enrichment
-  - Amount, currency, timestamp, reference tokenization
-  - Bank enrichment using centralized mappings
-- Matching engine
-  - Candidate retrieval + 7 weighted rules + tie‑breaking
-- Interfaces
-  - JSON‑RPC A2A endpoint (Telex‑compatible)
-  - REST endpoints for worker control and metrics
-- Storage
-  - Async SQLAlchemy, repositories, unit‑of‑work, Alembic migrations
-- Ops
-  - Structured logging, health endpoints, configurable via env
+4. **Automation Orchestration** (`app/core/automation.py`)
 
-See docs/Overview.md and docs/architecture.md for deeper design notes.
+   - Unified cycle execution (fetch → poll → match)
+   - Configurable interval (default: 15 minutes)
+   - Start/stop/status control
+   - Cycle statistics tracking
 
-## What’s implemented so far (by stage)
+5. **A2A/Telex Integration** (`app/a2a/`)
 
-- Stage 1 — A2A API & infrastructure
-  - JSON‑RPC 2.0 endpoint (status implemented; others return Not Implemented)
-  - Health endpoints, structured logging, configuration loader
-- Stage 2 — Storage models & persistence layer
-  - 5 models (email, transaction, match, log, config), repositories, UoW
-  - Alembic migrations and data retention utilities
-- Stage 3 — Transaction poller
-  - 15‑minute cadence (configurable), retries, circuit breaker, metrics
-  - Mock API client with realistic Nigerian data
-- Stage 4 — Email fetcher & intelligent parser
-  - IMAP connector, rule‑based filter, LLM assist (Groq), regex fallback
-  - Background fetcher with deduplication and metrics
-- Stage 5 — Normalization & enrichment
-  - Amount, currency, timestamp, reference normalization
-  - Bank enrichment via centralized mappings (118+ Nigerian banks/fintechs)
-- Stage 6 — Matching engine
-  - 7 weighted rules, fuzzy matching (rapidfuzz), composite keys, thresholds
-  - Candidate retrieval strategies with fallback
-- Stage 6.5 — Natural Language Command Interpreter ✨
-  - Regex-based pattern matching (no LLM required)
-  - 5 commands: help, reconcile, summary, list unmatched, confidence report
-  - 50+ phrase variations recognized
-  - <100ms response time, 98%+ accuracy
-  - Full backward compatibility with structured calls
-- Stage 7 — A2A Integration & Telex Workflow
-  - JSON‑RPC 2.0 endpoint with `status`, `message/send`, and `execute` methods
-  - Synchronous reconciliation with rule-level scoring and batch summaries
-  - Mock data refactoring (consolidated into single source of truth, 50% code reduction)
-  - Enhanced mock data seeding with matching pairs strategy (70% match rate)
-  - Configurable mock data via environment variables
-  - Data clearing functionality with safety prompts
+   - JSON-RPC 2.0 endpoint (`/a2a/agent/bara`)
+   - 12 BARA Core commands (natural language + structured)
+   - Artifact formatting for rich responses
+   - Execute method for automation control
 
-Refer to docs/Stage-1-Completion.md … docs/Stage-7-Completion.md for details.
+6. **Database Layer** (`app/db/`)
+   - Repository + UnitOfWork pattern
+   - SQLAlchemy async ORM
+   - Models: Email, Transaction, Match, ConfigLog
+   - Alembic migrations
 
-## Project layout and folder guide
+### Database Schema
 
 ```
-.
-├─ app/
-│  ├─ a2a/                # JSON‑RPC A2A endpoint
-│  │  ├─ router.py
-│  │  ├─ command_interpreter.py  # Natural language pattern matching
-│  │  └─ command_handlers.py     # Command execution handlers
-│  ├─ core/               # Cross‑cutting infrastructure
-│  │  ├─ config.py        # Pydantic settings loader
-│  │  └─ logging.py       # structlog configuration & middleware
-│  ├─ db/                 # Persistence layer
-│  │  ├─ base.py          # Async SQLAlchemy engine/session
-│  │  ├─ init.py          # DB init/reset CLI
-│  │  ├─ repository.py    # Base repository
-│  │  ├─ unit_of_work.py  # Transaction/UoW
-│  │  ├─ retention.py     # Cleanup and retention policies
-│  │  ├─ seed_mock.py     # Dynamic mock data seeding (dev/demo)
-│  │  ├─ models/          # ORM models (email, transaction, match, log, config)
-│  │  ├─ repositories/    # Specialized repositories
-│  │  └─ migrations/      # Alembic env & versions
-│  ├─ emails/             # Email ingestion & parsing
-│  │  ├─ imap_connector.py
-│  │  ├─ filter.py
-│  │  ├─ llm_client.py
-│  │  ├─ regex_extractor.py
-│  │  ├─ parser.py
-│  │  ├─ fetcher.py
-│  │  ├─ metrics.py
-│  │  └─ router.py        # REST endpoints
-│  ├─ normalization/      # Canonicalization & enrichment
-│  │  ├─ models.py
-│  │  ├─ banks.py         # Central Nigerian bank/fintech mappings (aliases/domains)
-│  │  └─ normalizer.py
-│  ├─ matching/           # Matching engine
-│  │  ├─ config.py
-│  │  ├─ models.py
-│  │  ├─ fuzzy.py
-│  │  ├─ retrieval.py
-│  │  ├─ rules.py
-│  │  ├─ scorer.py
-│  │  └─ engine.py
-│  ├─ testing/            # Shared mock data templates
-│  │  ├─ __init__.py
-│  │  └─ mock_data_templates.py  # Single source of truth for mock data patterns
-│  └─ transactions/       # Poller & API clients
-│     ├─ clients/
-│     │  ├─ base.py
-│     │  └─ mock_client.py
-│     ├─ config.py
-│     ├─ metrics.py
-│     ├─ poller.py
-│     └─ router.py        # REST endpoints
-├─ docker/
-│  └─ Dockerfile          # Slim Python 3.13 image
-├─ docs/                  # Architecture, stages, and roadmap
-├─ tests/                 # Unit tests and fixtures
-│  ├─ seed_fixtures.py    # Load static test data from fixtures
-│  ├─ fixtures/           # Hardcoded test data (emails, transactions)
-│  └─ test_*.py           # Test files
-├─ main.py                # Entrypoint (delegates to app/main.py)
-├─ app/main.py            # FastAPI app assembly & health
-├─ pyproject.toml         # Project & dependency metadata
-├─ run_server.bat         # Windows helper to start dev server
-├─ run_checks.bat         # Windows helper for lint/test (if configured)
-└─ alembic.ini            # Alembic config
+emails              # Parsed email alerts
+├── id (PK)
+├── message_id
+├── from_address
+├── subject
+├── amount
+├── reference
+├── timestamp
+└── matched (bool)
+
+transactions        # API transaction records
+├── id (PK)
+├── source_id
+├── amount
+├── reference
+├── timestamp
+└── matched (bool)
+
+matches             # Matched pairs
+├── id (PK)
+├── email_id (FK)
+├── transaction_id (FK)
+├── confidence_score
+├── rule_scores (JSON)
+└── created_at
+
+config_logs         # Automation configuration history
+├── id (PK)
+├── interval_seconds
+├── changed_at
+└── changed_by
 ```
 
-Highlights:
+## 🚀 Quick Start
 
-- Centralized bank mappings live in `app/normalization/banks.py` (aliases + domains + categories)
-- Mock data templates unified in `app/testing/mock_data_templates.py` (single source of truth)
-- Two seeding options: `app/db/seed_mock.py` (dynamic, large, 70% match rate) and `tests/seed_fixtures.py` (static, small)
-- Configurable mock data via `MOCK_EMAIL_COUNT` and `POLLER_BATCH_SIZE` environment variables
-- Tests and documentation accompany each stage
-
-## Getting started (uv) — Windows PowerShell
-
-Prerequisites:
+### Prerequisites
 
 - Python 3.13+
-- uv (package/dependency manager): https://docs.astral.sh/uv/
-- A running database (PostgreSQL recommended for dev/prod; SQLite used in tests)
+- PostgreSQL 12+ (production) or SQLite (development)
+- IMAP email account (for production)
+- Groq API key (optional, for LLM parsing)
 
-Install uv (if needed):
-
-```powershell
-# Scoop
-scoop install uv
-# or, pipx
-pipx install uv
-```
-
-Create a virtual environment and install dependencies:
+### Installation
 
 ```powershell
+# Clone repository
+git clone <repository-url>
+cd "Bank Alert Reconciliation Agent"
+
+# Create virtual environment with uv
 uv venv
+.\.venv\Scripts\Activate.ps1
+
+# Install dependencies
 uv sync
-```
 
-Set up environment variables:
-
-```powershell
-# Copy and edit as needed (if .env.example is present)
-Copy-Item .env.example .env
-# Then open .env and fill values (see Configuration section below)
-```
-
-## Configuration
-
-Configuration is managed by Pydantic Settings (`app/core/config.py`) and environment variables. Key variables (expand as needed):
-
-- Core:
-  - `ENV` (development|staging|production)
-  - `DEBUG` (true|false)
-  - `A2A_AGENT_NAME` (e.g., bankMatcher)
-- Database:
-  - `DATABASE_URL` (e.g., postgresql+asyncpg://user:pass@host:5432/db)
-  - `TEST_DATABASE_URL` (e.g., sqlite+aiosqlite:///./test_bara_db.sqlite3)
-- Email / IMAP:
-  - `IMAP_HOST`, `IMAP_USER`, `IMAP_PASS`
-  - Optional behavior: poll intervals, batch sizes (see `app/emails/config.py`)
-- LLM (optional):
-  - `LLM_PROVIDER` (e.g., groq)
-  - `GROQ_API_KEY`, `GROQ_MODEL`
-- Transactions Poller (see `app/transactions/config.py`):
-  - Poll interval, batch size, retries, circuit breaker thresholds
-- Mock Data (development/testing):
-  - `MOCK_EMAIL_COUNT` (default: 10, range: 1-100) — Number of mock emails to generate
-  - `POLLER_BATCH_SIZE` (default: 100, range: 1-1000) — Number of mock transactions to generate
-
-Defaults exist for many options; missing secrets should be provided via `.env`.
-
-## Database, migrations, and seed data
-
-Initialize and migrate the database:
-
-```powershell
-# Show current version
-uv run alembic current
-# Upgrade to latest
+# Run database migrations
 uv run alembic upgrade head
-# Create a new migration (after model changes)
-uv run alembic revision --autogenerate -m "your message"
 ```
 
-Optional: seed data for development/testing:
+### Configuration
 
-```powershell
-# Dynamic mock data (large volumes, guaranteed 70% match rate)
-uv run python -m app.db.seed_mock 50 40 72
+Create `.env` file in project root:
 
-# Clear existing data first, then seed (prompts for confirmation)
-uv run python -m app.db.seed_mock 100 80 48 true
+```env
+# Environment
+ENV=development
 
-# Static test fixtures (small dataset, for unit tests)
-uv run python -m tests.seed_fixtures
+# Database
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost/bara
+# Or for SQLite:
+# DATABASE_URL=sqlite+aiosqlite:///./bara.db
+
+# IMAP (optional in dev, uses mock data)
+IMAP_HOST=imap.gmail.com
+IMAP_PORT=993
+IMAP_USER=your-email@gmail.com
+IMAP_PASS=your-app-password
+
+# LLM (optional, falls back to regex)
+GROQ_API_KEY=your-groq-api-key
+GROQ_MODEL=llama-3.3-70b-versatile
+
+# Automation
+AUTOMATION_INTERVAL_SECONDS=900  # 15 minutes
+AUTOMATION_ENABLED=false  # Set to true to auto-start
 ```
 
-Reset (dangerous in production):
+### Running the Server
 
 ```powershell
-uv run python -m app.db.init reset
-```
+# Activate virtual environment
+.\.venv\Scripts\Activate.ps1
 
-## Running the app
-
-Start the FastAPI server (dev hot‑reload):
-
-```powershell
-# Helper script
+# Start server
 ./run_server.bat
-
-# Or directly with uvicorn
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Or manually:
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Health checks:
+Server runs at `http://localhost:8000`
 
-- GET `/` → `{ "status": "ok" }`
-- GET `/healthz` → `{ "status": "ok", "env": "development|staging|production" }`
+### Verify Installation
 
-A2A JSON‑RPC (Telex‑compatible):
+```powershell
+# Health check
+curl http://localhost:8000/healthz
 
-- POST `/a2a/agent/BARA`
-- POST `/a2a/agent/bankMatcher`
+# Expected response:
+# {"status":"ok","env":"development"}
+```
 
-**Supported methods:**
+## 📡 API Reference
 
-- `status` — Health & configuration metadata
-- `message/send` — Synchronous reconciliation with batch processing
-  - **Natural language**: "reconcile 50 emails", "show summary", "list unmatched"
-  - **Structured params**: `limit`, `email_ids`, `rematch`, `summarize`
-  - Returns: Detailed artifacts with rule-level scores and batch summaries
-- `execute` — Async job submission (placeholder for future queue integration)
+### Health & Monitoring
 
-Example natural language request:
+| Endpoint   | Method | Description                      |
+| ---------- | ------ | -------------------------------- |
+| `/`        | GET    | Basic health check               |
+| `/healthz` | GET    | Detailed health with environment |
+
+### A2A JSON-RPC Endpoint
+
+**Endpoint:** `POST /a2a/agent/bara`
+
+**12 BARA Core Commands:**
+
+1. **help** - List available commands
+2. **match_all** - Match all unmatched emails
+3. **match_now** - Immediate matching with limit
+4. **match_specific** - Match specific email IDs
+5. **show_summary** - Reconciliation statistics
+6. **list_unmatched** - List unmatched emails
+7. **get_match_details** - Match details by ID
+8. **start_automation** - Start background automation
+9. **stop_automation** - Stop background automation
+10. **get_status** - Current automation status
+11. **search_matches** - Search matches by criteria
+12. **export_report** - Generate reconciliation report
+
+**Methods:**
+
+- `status` - Health check with metrics
+- `message/send` - Natural language command or structured params
+- `execute` - Direct automation control (get_status, start, stop, run_cycle)
+
+**Example Requests:**
 
 ```json
+// Natural Language
 {
   "jsonrpc": "2.0",
-  "id": "req-001",
+  "id": "nl-001",
   "method": "message/send",
   "params": {
     "message": {
-      "parts": [{ "text": "reconcile 50 emails" }]
+      "kind": "message",
+      "parts": [{"kind": "text", "text": "match 50 emails now"}]
     }
   }
 }
-```
 
-Example structured request:
-
-```json
+// Structured Parameters
 {
   "jsonrpc": "2.0",
-  "id": "req-002",
+  "id": "struct-001",
   "method": "message/send",
   "params": {
-    "limit": 10,
+    "limit": 50,
     "summarize": true
+  }
+}
+
+// Execute Method
+{
+  "jsonrpc": "2.0",
+  "id": "exec-001",
+  "method": "execute",
+  "params": {
+    "action": "run_cycle"
   }
 }
 ```
 
-See `docs/Stage-6.5-Completion.md` and `docs/Telex-BARA-Workflow.md` for detailed specifications.
+### REST API - Automation Control
 
-## Background workers (poller, email fetcher)
+| Endpoint             | Method | Description                                          |
+| -------------------- | ------ | ---------------------------------------------------- |
+| `/automation/status` | GET    | Get automation status and metrics                    |
+| `/automation/start`  | POST   | Start automation (body: `{"interval_seconds": 900}`) |
+| `/automation/stop`   | POST   | Stop automation                                      |
+| `/automation/match`  | POST   | Trigger manual matching (body: `{"limit": 50}`)      |
 
-Transactions poller endpoints (`app/transactions/router.py`):
+### REST API - Email Management
 
-- GET `/transactions/poller/status`
-- POST `/transactions/poller/start`
-- POST `/transactions/poller/stop`
-- POST `/transactions/poller/poll` (manual one‑off)
+| Endpoint          | Method | Description                  |
+| ----------------- | ------ | ---------------------------- |
+| `/emails/fetch`   | POST   | Manually trigger email fetch |
+| `/emails/metrics` | GET    | Get email fetcher metrics    |
 
-Email fetcher endpoints (`app/emails/router.py`):
+### REST API - Transaction Management
 
-- GET `/emails/fetcher/status`
-- POST `/emails/fetcher/start`
-- POST `/emails/fetcher/stop`
-- POST `/emails/fetcher/fetch` (manual one‑off)
+| Endpoint                | Method | Description                       |
+| ----------------------- | ------ | --------------------------------- |
+| `/transactions/poll`    | POST   | Manually trigger transaction poll |
+| `/transactions/metrics` | GET    | Get transaction poller metrics    |
 
-Both services collect in‑memory run metrics accessible via their status endpoints. Auto‑start can be configured via their respective configs.
+## 🧪 Testing
 
-## Testing, linting, and formatting
-
-Run unit tests:
-
-```powershell
-uv run pytest -q
-```
-
-Formatting and linting (tools are declared in `pyproject.toml` dev group):
+### Run Tests
 
 ```powershell
-# Format with Black
-uv run black .
-# Import sorting with isort
-uv run isort .
-# Lint with Flake8
-uv run flake8 .
+# Activate venv
+.\.venv\Scripts\Activate.ps1
+
+# Run all tests
+pytest -q
+
+# Run with coverage
+pytest --cov=app tests/
+
+# Run specific test file
+pytest tests/test_matching.py -v
 ```
 
-Optional type checking (mypy config present; install if desired):
+**Current Test Status:** 148 tests passing
+
+### Mock Data for Testing
 
 ```powershell
-uv add --group dev mypy
-uv run mypy .
+# Seed dynamic mock data (50 transactions, 40 emails, 72-hour window)
+python -m app.db.seed_mock 50 40 72
+
+# Clear and reseed
+python -m app.db.seed_mock 100 80 48 true
+
+# Seed static test fixtures (for unit tests)
+python -m tests.seed_fixtures
 ```
 
-## Docker
-
-Build and run a container image:
+### Quality Checks
 
 ```powershell
-# Build
-docker build -t bara:dev -f docker/Dockerfile .
-# Run
-docker run --rm -p 8000:8000 --env-file .env bara:dev
+# Run all checks (Ruff, Black, mypy)
+./run_checks.bat
+
+# Individual tools
+ruff check .         # Linting
+black .             # Formatting
+mypy .              # Type checking
 ```
 
-## Bank mappings maintenance
+## 🛠️ Development Workflows
 
-Bank/fintech/microfinance alias and domain mappings are centralized in:
+### Database Migrations
 
-- `app/normalization/banks.py` (export: `BANK_MAPPINGS`)
+```powershell
+# Check current version
+alembic current
 
-Guidelines:
+# Upgrade to latest
+alembic upgrade head
 
-- Use lowercase alias keys without punctuation (e.g., `gtb`, `gtbank`, `kuda`)
-- Provide a concise `code`, canonical `name`, and known `domains`
-- Tag `category` (commercial | non_interest | fintech | microfinance)
-- Add common aliases and verified email/web domains
+# Create new migration
+alembic revision --autogenerate -m "description"
 
-## Roadmap and next steps
+# Downgrade one version
+alembic downgrade -1
+```
 
-This project is being implemented in stages. **Completed: 1–7 (including 6.5)** — A2A integration, natural language interface, matching engine, and mock data infrastructure. Coming up:
+### Adding a New Bank
 
-- Stage 8: Pagination, advanced filtering, and query optimization
-- Stage 9: Background job queue & async execution for `execute` method
-- Authentication & rate limiting for agent endpoints
-- Webhook callback delivery and push notifications
-- Rule tuning and adaptive thresholds
-- Prometheus metrics export and alerts
-- Additional sources (webhooks, MMS/USSD, etc.)
-- Broader bank and wallet coverage as needed
-- Natural language enhancements (fuzzy matching, typo tolerance, multi-turn context)
+Update `app/normalization/banks.py`:
 
-See `docs/Roadmap.md` for the high‑level plan and per‑stage docs for details.
+```python
+"moniepoint": {
+    "code": "MONIE",
+    "name": "Moniepoint MFB",
+    "domains": ["moniepoint.com", "teamapt.com"],
+    "category": "microfinance"
+}
+```
 
-## License
+Email whitelist auto-updates. No other changes needed.
 
-See `LICENSE` for licensing information.
+### Adding a Transaction Source
+
+1. Create client in `app/transactions/clients/new_client.py`
+2. Inherit from `BaseTransactionClient`
+3. Implement: `fetch_transactions()`, `validate_credentials()`, `get_source_name()`
+4. Update factory in poller configuration
+
+### Adding a Matching Rule
+
+1. Add rule function to `app/matching/rules.py`
+2. Signature: `def rule_name(email: NormalizedEmail, txn: NormalizedTransaction) -> float`
+3. Return: 0.0-1.0 score
+4. Update `MatchingConfig.RULES` with weight
+5. Scorer auto-executes new rule
+
+## 📈 Monitoring & Metrics
+
+### Automation Metrics
+
+```json
+{
+  "running": true,
+  "interval_seconds": 900,
+  "total_cycles": 42,
+  "successful_cycles": 40,
+  "failed_cycles": 2,
+  "last_run": "2025-06-15T10:30:00Z",
+  "next_run": "2025-06-15T10:45:00Z"
+}
+```
+
+### Email Fetcher Metrics
+
+```json
+{
+  "total_fetches": 120,
+  "total_emails_fetched": 450,
+  "total_emails_processed": 425,
+  "total_emails_stored": 400,
+  "last_fetch_at": "2025-06-15T10:30:00Z",
+  "last_fetch_duration_seconds": 2.5
+}
+```
+
+### Transaction Poller Metrics
+
+```json
+{
+  "total_polls": 120,
+  "successful_polls": 118,
+  "failed_polls": 2,
+  "total_transactions_fetched": 500,
+  "circuit_breaker_state": "closed",
+  "last_poll_at": "2025-06-15T10:30:00Z"
+}
+```
+
+## 🔒 Production Deployment
+
+### Environment Variables (Production)
+
+```env
+ENV=production
+DATABASE_URL=postgresql+asyncpg://user:pass@prod-db:5432/bara
+IMAP_HOST=imap.company.com
+IMAP_USER=alerts@company.com
+IMAP_PASS=<secure-password>
+GROQ_API_KEY=<secure-key>
+AUTOMATION_ENABLED=true
+AUTOMATION_INTERVAL_SECONDS=900
+LOG_LEVEL=INFO
+```
+
+### Docker Deployment
+
+```bash
+# Build image
+docker build -t bara:3.0.0 -f docker/Dockerfile .
+
+# Run container
+docker run -d \
+  --name bara \
+  -p 8000:8000 \
+  --env-file .env.production \
+  bara:3.0.0
+```
+
+### Health Checks
+
+Configure load balancer/orchestrator to monitor:
+
+- `GET /healthz` (should return 200 with `{"status":"ok"}`)
+- `GET /automation/status` (should return 200 with running state)
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**1. "relation does not exist" errors**
+
+```powershell
+uv run alembic upgrade head
+```
+
+**2. Mock data not matching**
+
+- Ensure generators use `app/testing/mock_data_templates.py`
+- Reseed data: `python -m app.db.seed_mock 50 40 72`
+
+**3. Email filtering too strict**
+
+- Check `app/normalization/banks.py` for missing bank domains
+- Verify IMAP credentials in `.env`
+
+**4. Tests failing**
+
+```powershell
+# Clear test database
+rm bara_test.db
+# Re-run migrations
+uv run alembic upgrade head
+# Run tests
+pytest -q
+```
+
+## 📚 Documentation
+
+- **Architecture:** `docs/architecture.md`
+- **Telex Integration:** `docs/Telex-Commands-Reference.md`
+- **API Tests:** `docs/BARA-Telex-Integration.postman_collection.json`
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Run quality checks (`./run_checks.bat`)
+5. Ensure tests pass (`pytest -q`)
+6. Push to branch (`git push origin feature/amazing-feature`)
+7. Open Pull Request
+
+## 📄 License
+
+See `LICENSE` file for details.
+
+## 👥 Team
+
+**Project Lead:** KP  
+**Architecture:** Reconciliation Engine v3.0  
+**Integration:** Telex A2A Protocol
 
 ---
-
-Maintainers: contributions are welcome. Please open an issue to propose changes, or submit a PR following the coding conventions, with tests and documentation where appropriate.

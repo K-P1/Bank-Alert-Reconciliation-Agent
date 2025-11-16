@@ -36,7 +36,11 @@ class MatchingEngine:
     4. Result persistence
     """
 
-    def __init__(self, session: AsyncSession, config: MatchingConfig | None = None):
+    def __init__(
+        self,
+        session: AsyncSession,
+        config: MatchingConfig | None = None,
+    ):
         """
         Initialize matching engine.
 

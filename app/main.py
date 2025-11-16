@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.a2a.router import router as a2a_router
+from app.core.automation import get_automation_service
+from app.core.automation_router import router as automation_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, request_id_middleware
 from app.emails.config import EmailConfig
@@ -39,18 +41,18 @@ async def lifespan(app: FastAPI):
             email_config = EmailConfig.from_settings(settings)
             fetcher = EmailFetcher(settings, email_config)
             set_fetcher(fetcher)
-
-            # Start background polling if enabled
-            if email_config.fetcher.enabled and email_config.fetcher.start_immediately:
-                await fetcher.start()
-                logger.info("✓ Email fetcher started automatically")
-            else:
-                logger.info("✓ Email fetcher initialized (manual start required)")
+            logger.info("✓ Email fetcher initialized (not auto-started)")
 
         except Exception as e:
             logger.error(f"✗ Failed to initialize email fetcher: {e}", exc_info=True)
     else:
         logger.warning("⚠ IMAP settings not configured, email fetcher disabled")
+
+    # Initialize automation service (unified orchestration)
+    logger.info("🤖 Initializing automation service...")
+    automation = get_automation_service()
+    logger.info("✓ Automation service initialized (not auto-started)")
+    logger.info("   Use POST /automation/start or A2A 'start automation' command")
 
     logger.info("=" * 70)
     logger.info("✓ BARA startup complete - Ready to process requests")
@@ -63,10 +65,18 @@ async def lifespan(app: FastAPI):
     logger.info("🛑 Shutting down Bank Alert Reconciliation Agent...")
     logger.info("=" * 70)
 
+    # Stop automation service if running
+    automation = get_automation_service()
+    if automation._running:
+        logger.info("Stopping automation service...")
+        await automation.stop()
+        logger.info("✓ Automation service stopped")
+
     # Stop email fetcher if running
     from app.emails.router import _fetcher
 
-    if _fetcher:
+    if _fetcher and _fetcher._running:
+        logger.info("Stopping email fetcher...")
         await _fetcher.stop()
         logger.info("✓ Email fetcher stopped")
 
@@ -80,6 +90,7 @@ app = FastAPI(
 )
 app.middleware("http")(request_id_middleware)
 app.include_router(a2a_router)
+app.include_router(automation_router)
 app.include_router(transactions_router)
 app.include_router(emails_router)
 
@@ -93,4 +104,4 @@ def health_check():
 @app.get("/healthz")
 def healthz():
     logger.debug(f"Healthz endpoint called (env: {settings.ENV})")
-    return {"status": "ok", "env": settings.ENV}
+    return {"status": "healthy", "env": settings.ENV}

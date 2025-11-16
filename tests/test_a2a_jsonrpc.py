@@ -72,22 +72,39 @@ async def test_jsonrpc_message_send_empty_db(db_session):
 
 
 def test_jsonrpc_execute_accepts():
-    """Test that execute method returns a proper Task response."""
+    """Test that execute method returns automation control response."""
     client = TestClient(app)
-    payload = {"jsonrpc": "2.0", "id": "req-003", "method": "execute", "params": {}}
+
+    # Test start_automation action
+    payload = {
+        "jsonrpc": "2.0",
+        "id": "req-003",
+        "method": "execute",
+        "params": {"action": "start_automation"},
+    }
     resp = client.post("/a2a/agent/bankMatcher", json=payload)
     assert resp.status_code == 200
     body = resp.json()
     assert body["id"] == "req-003"
 
-    # Check for Telex Task format
+    # Check for Telex Message format
     assert "result" in body
     result = body["result"]
-    assert "id" in result  # Task ID
-    assert "status" in result
-    status = result["status"]
-    assert status["state"] in ("pending", "running", "completed", "failed")
-    assert "message" in status or "progress" in status
+    assert result["kind"] == "message"
+    assert "parts" in result
+    parts = result["parts"]
+    assert len(parts) >= 1
+
+    # First part should be text
+    text_part = parts[0]
+    assert text_part["kind"] == "text"
+    assert "Automation" in text_part["text"]
+
+    # Should have data part with status
+    data_parts = [p for p in parts if p.get("kind") == "data"]
+    assert len(data_parts) >= 1
+    status_data = data_parts[0]["data"]
+    assert "running" in status_data
 
 
 def test_jsonrpc_unknown_method_still_unimplemented():

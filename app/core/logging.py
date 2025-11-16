@@ -21,7 +21,7 @@ def configure_logging(env: str = "development") -> None:
     """Configure structlog for clean, readable console logs to stdout."""
     timestamper = structlog.processors.TimeStamper(fmt="iso", utc=True)
 
-    shared_processors = [
+    shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
         _add_log_level,
         timestamper,
@@ -40,7 +40,6 @@ def configure_logging(env: str = "development") -> None:
             *shared_processors,
             structlog.dev.ConsoleRenderer(
                 colors=True,
-                exception_formatter=structlog.dev.plain_traceback,
             ),
         ],
         context_class=dict,
@@ -59,6 +58,7 @@ async def request_id_middleware(request: Request, call_next):  # type: ignore[no
         request_id=request_id, path=str(request.url.path)
     )
 
+    response = None
     try:
         response = await call_next(request)
     finally:
@@ -67,10 +67,11 @@ async def request_id_middleware(request: Request, call_next):  # type: ignore[no
         logger.info(
             "request.completed",
             method=request.method,
-            status=getattr(response, "status_code", 0),
+            status=getattr(response, "status_code", 0) if response else 500,
             duration_ms=duration_ms,
         )
         structlog.contextvars.clear_contextvars()
 
-    response.headers["x-request-id"] = request_id
+    if response:
+        response.headers["x-request-id"] = request_id
     return response

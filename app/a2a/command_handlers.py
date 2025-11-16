@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,9 +36,26 @@ class CommandHandlers:
         self.match_repo = MatchRepository(Match, db)
         self.transaction_repo = TransactionRepository(Transaction, db)
 
-    async def reconcile_now(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _as_dict(self, obj: Any) -> Dict[str, Any]:
+        """Normalize a Pydantic model or mapping to a plain dict.
+
+        This helps static type checkers and ensures consistent handling
+        of router responses that may return either a Pydantic model
+        or a raw dict.
         """
-        Trigger immediate reconciliation.
+        if isinstance(obj, dict):
+            return obj
+        if hasattr(obj, "model_dump"):
+            # model_dump returns a variety of types; cast to a dict for
+            # the static type checker to accept our usage below.
+            return cast(Dict[str, Any], obj.model_dump())
+        if hasattr(obj, "dict"):
+            return cast(Dict[str, Any], obj.dict())
+        return {}
+
+    async def match_now(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Trigger immediate matching of unmatched emails.
 
         Params:
             limit (optional): Number of emails to process
@@ -47,14 +64,14 @@ class CommandHandlers:
         limit = params.get("limit")
         rematch = params.get("rematch", False)
 
-        logger.info("handler.reconcile_now.start", limit=limit, rematch=rematch)
+        logger.info("handler.match_now.start", limit=limit, rematch=rematch)
 
         try:
             # Run reconciliation
             batch_result = await match_unmatched(self.db, limit=limit)
 
             summary = (
-                f"✅ Reconciliation complete!\n\n"
+                f"✅ Matching complete!\n\n"
                 f"📊 **Results:**\n"
                 f"  • Total processed: {batch_result.total_emails}\n"
                 f"  • Auto-matched: {batch_result.total_matched}\n"
@@ -68,7 +85,7 @@ class CommandHandlers:
             artifacts = self._build_reconciliation_artifacts(batch_result)
 
             logger.info(
-                "handler.reconcile_now.success",
+                "handler.match_now.success",
                 total=batch_result.total_emails,
                 matched=batch_result.total_matched,
             )
@@ -83,10 +100,10 @@ class CommandHandlers:
                 },
             }
         except Exception as exc:  # noqa: BLE001
-            logger.exception("handler.reconcile_now.error", error=str(exc))
+            logger.exception("handler.match_now.error", error=str(exc))
             return {
                 "status": "error",
-                "summary": f"❌ Reconciliation failed: {str(exc)}",
+                "summary": f"❌ Matching failed: {str(exc)}",
                 "artifacts": [],
                 "meta": {"error": str(exc)},
             }
@@ -260,81 +277,396 @@ class CommandHandlers:
                 "meta": {"error": str(exc)},
             }
 
-    async def get_confidence_report(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def fetch_emails_now(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Generate confidence and accuracy report.
+        Trigger immediate email fetch from IMAP.
 
         Params:
-            days (optional): Number of days to analyze (default: 7)
+            None
         """
-        days = params.get("days", 7)
-        since = datetime.now(timezone.utc) - timedelta(days=days)
-
-        logger.info("handler.get_confidence_report.start", days=days)
+        logger.info("handler.fetch_emails_now.start")
 
         try:
-            # Get all matches in the time period
-            matches = await self.match_repo.filter(created_at__gte=since)
+            # Import here to avoid circular dependency
+            from app.emails.router import trigger_fetch
 
-            if not matches:
-                summary = f"📊 No matches found in the last {days} days."
-                return {
-                    "status": "success",
-                    "summary": summary,
-                    "artifacts": [],
-                    "meta": {"days": days},
-                }
-
-            # Calculate statistics
-            total_matches = len(matches)
-            confidences = [m.confidence for m in matches if m.confidence is not None]
-            avg_confidence = sum(confidences) / len(confidences) if confidences else 0
-
-            high_confidence = len([c for c in confidences if c >= 0.8])
-            medium_confidence = len([c for c in confidences if 0.5 <= c < 0.8])
-            low_confidence = len([c for c in confidences if c < 0.5])
+            result = await trigger_fetch()
 
             summary = (
-                f"📊 **Confidence Report** (Last {days} days)\n\n"
-                f"**Overall:**\n"
-                f"  • Total matches: {total_matches}\n"
-                f"  • Average confidence: {avg_confidence:.2%}\n\n"
-                f"**Distribution:**\n"
-                f"  • High (≥80%): {high_confidence} ({high_confidence/total_matches*100:.1f}%)\n"
-                f"  • Medium (50-80%): {medium_confidence} ({medium_confidence/total_matches*100:.1f}%)\n"
-                f"  • Low (<50%): {low_confidence} ({low_confidence/total_matches*100:.1f}%)\n"
+                f"✅ Email fetch complete!\n\n"
+                f"📊 **Results:**\n"
+                f"  • Emails fetched: {result.emails_fetched}\n"
+                f"  • Emails processed: {result.emails_processed}\n"
+                f"  • Emails stored: {result.emails_stored}\n"
             )
 
-            logger.info(
-                "handler.get_confidence_report.success",
-                total_matches=total_matches,
-                avg_confidence=avg_confidence,
-            )
+            if result.error:
+                summary += f"\n⚠️ {result.error}"
+
+            logger.info("handler.fetch_emails_now.success", stored=result.emails_stored)
 
             return {
                 "status": "success",
                 "summary": summary,
                 "artifacts": [
                     {
-                        "kind": "confidence_report",
+                        "kind": "fetch_result",
                         "data": {
-                            "total_matches": total_matches,
-                            "average_confidence": avg_confidence,
-                            "distribution": {
-                                "high": high_confidence,
-                                "medium": medium_confidence,
-                                "low": low_confidence,
-                            },
+                            "run_id": result.run_id,
+                            "emails_fetched": result.emails_fetched,
+                            "emails_processed": result.emails_processed,
+                            "emails_stored": result.emails_stored,
                         },
                     }
                 ],
-                "meta": {"days": days, "since": since.isoformat()},
+                "meta": {"run_id": result.run_id},
             }
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("handler.get_confidence_report.error", error=str(exc))
+        except Exception as exc:
+            logger.exception("handler.fetch_emails_now.error", error=str(exc))
             return {
                 "status": "error",
-                "summary": f"❌ Failed to generate report: {str(exc)}",
+                "summary": f"❌ Email fetch failed: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def fetch_transactions_now(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Trigger immediate transaction polling from APIs.
+
+        Params:
+            None
+        """
+        logger.info("handler.fetch_transactions_now.start")
+
+        try:
+            from app.transactions.router import trigger_poll
+
+            result = await trigger_poll()
+
+            summary = (
+                f"✅ Transaction poll complete!\n\n"
+                f"📊 **Results:**\n"
+                f"  • Run ID: {result.run_id}\n"
+                f"  • Status: {result.status}\n"
+                f"  • Message: {result.message}\n"
+            )
+
+            if "warning" in result.details:
+                summary += f"\n⚠️ {result.details['warning']}"
+
+            logger.info("handler.fetch_transactions_now.success", run_id=result.run_id)
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "poll_result",
+                        "data": result.details,
+                    }
+                ],
+                "meta": {"run_id": result.run_id},
+            }
+        except Exception as exc:
+            logger.exception("handler.fetch_transactions_now.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Transaction poll failed: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def get_status(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get system status and automation state.
+
+        Params:
+            None
+        """
+        logger.info("handler.get_status.start")
+
+        try:
+            from app.core.automation import get_automation_service
+
+            automation = get_automation_service()
+            status = automation.get_status()
+
+            summary = (
+                f"🤖 **System Status**\n\n"
+                f"**Automation:**\n"
+                f"  • Running: {'Yes ✓' if status['running'] else 'No ✗'}\n"
+                f"  • Interval: {status['interval_seconds']}s\n"
+                f"  • Total cycles: {status['total_cycles']}\n"
+                f"  • Successful: {status['successful_cycles']}\n"
+                f"  • Failed: {status['failed_cycles']}\n"
+                f"  • Success rate: {status['success_rate']:.1f}%\n"
+            )
+
+            if status["last_run"]:
+                summary += f"  • Last run: {status['last_run']}\n"
+
+            if status["last_error"]:
+                summary += f"\n⚠️ Last error: {status['last_error']}\n"
+
+            logger.info("handler.get_status.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "system_status",
+                        "data": status,
+                    }
+                ],
+                "meta": {"running": status["running"]},
+            }
+        except Exception as exc:
+            logger.exception("handler.get_status.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to get status: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def start_automation(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Start the automation background service.
+
+        Params:
+            interval (optional): Override interval in seconds
+        """
+        interval = params.get("interval")
+
+        logger.info("handler.start_automation.start", interval=interval)
+
+        try:
+            from app.core.automation import get_automation_service
+
+            automation = get_automation_service()
+            result = await automation.start(interval_seconds=interval)
+
+            summary = f"✅ {result['message']}"
+
+            logger.info("handler.start_automation.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "service_control",
+                        "data": result,
+                    }
+                ],
+                "meta": result,
+            }
+        except Exception as exc:
+            logger.exception("handler.start_automation.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to start automation: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def stop_automation(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Stop the automation background service.
+
+        Params:
+            None
+        """
+        logger.info("handler.stop_automation.start")
+
+        try:
+            from app.core.automation import get_automation_service
+
+            automation = get_automation_service()
+            result = await automation.stop()
+
+            summary = f"✅ {result['message']}"
+
+            logger.info("handler.stop_automation.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "service_control",
+                        "data": result,
+                    }
+                ],
+                "meta": result,
+            }
+        except Exception as exc:
+            logger.exception("handler.stop_automation.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to stop automation: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def show_metrics(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Show system metrics and performance statistics.
+
+        Params:
+            hours (optional): Number of hours to look back (default: 24)
+        """
+        hours = params.get("hours", 24)
+
+        logger.info("handler.show_metrics.start", hours=hours)
+
+        try:
+            summary = (
+                f"📊 **System Metrics** (Last {hours} hours)\n\n"
+                f"⚠️ Detailed metrics implementation pending.\n"
+                f"This command will show:\n"
+                f"  • Matching performance statistics\n"
+                f"  • Email/transaction processing rates\n"
+                f"  • System resource utilization\n"
+                f"  • Error rates and trends\n"
+            )
+
+            logger.info("handler.show_metrics.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "metrics_placeholder",
+                        "data": {"hours": hours, "status": "pending_implementation"},
+                    }
+                ],
+                "meta": {"hours": hours},
+            }
+        except Exception as exc:
+            logger.exception("handler.show_metrics.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to retrieve metrics: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def show_logs(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Show recent system logs.
+
+        Params:
+            limit (optional): Number of log entries to return (default: 50)
+            level (optional): Filter by log level (info, warning, error)
+        """
+        limit = params.get("limit", 50)
+        level = params.get("level", "all")
+
+        logger.info("handler.show_logs.start", limit=limit, level=level)
+
+        try:
+            summary = (
+                f"📋 **System Logs** (Last {limit} entries)\n\n"
+                f"⚠️ Log retrieval implementation pending.\n"
+                f"This command will show:\n"
+                f"  • Recent system events\n"
+                f"  • Error messages and warnings\n"
+                f"  • Filtering by log level: {level}\n"
+                f"  • Timestamp and context information\n"
+            )
+
+            logger.info("handler.show_logs.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "logs_placeholder",
+                        "data": {
+                            "limit": limit,
+                            "level": level,
+                            "status": "pending_implementation",
+                        },
+                    }
+                ],
+                "meta": {"limit": limit, "level": level},
+            }
+        except Exception as exc:
+            logger.exception("handler.show_logs.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Failed to retrieve logs: {str(exc)}",
+                "artifacts": [],
+                "meta": {"error": str(exc)},
+            }
+
+    async def manual_match(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Manually match a specific email to a transaction.
+
+        Params:
+            email_id (required): Email ID to match
+            transaction_id (required): Transaction ID to match
+            confidence (optional): Manual confidence score (0.0-1.0)
+        """
+        email_id = params.get("email_id")
+        transaction_id = params.get("transaction_id")
+        confidence = params.get("confidence", 1.0)
+
+        logger.info(
+            "handler.manual_match.start",
+            email_id=email_id,
+            transaction_id=transaction_id,
+            confidence=confidence,
+        )
+
+        try:
+            if not email_id or not transaction_id:
+                return {
+                    "status": "error",
+                    "summary": "❌ Both email_id and transaction_id are required for manual matching.",
+                    "artifacts": [],
+                    "meta": {"error": "missing_parameters"},
+                }
+
+            summary = (
+                f"🔗 **Manual Match**\n\n"
+                f"⚠️ Manual matching implementation pending.\n"
+                f"This command will:\n"
+                f"  • Match Email #{email_id} with Transaction #{transaction_id}\n"
+                f"  • Set confidence score: {confidence:.2%}\n"
+                f"  • Mark as manually reviewed\n"
+                f"  • Create audit trail\n"
+            )
+
+            logger.info("handler.manual_match.success")
+
+            return {
+                "status": "success",
+                "summary": summary,
+                "artifacts": [
+                    {
+                        "kind": "manual_match_placeholder",
+                        "data": {
+                            "email_id": email_id,
+                            "transaction_id": transaction_id,
+                            "confidence": confidence,
+                            "status": "pending_implementation",
+                        },
+                    }
+                ],
+                "meta": {"email_id": email_id, "transaction_id": transaction_id},
+            }
+        except Exception as exc:
+            logger.exception("handler.manual_match.error", error=str(exc))
+            return {
+                "status": "error",
+                "summary": f"❌ Manual match failed: {str(exc)}",
                 "artifacts": [],
                 "meta": {"error": str(exc)},
             }
@@ -411,3 +743,46 @@ def extract_rematch_flag(message: str, match: Optional[re.Match]) -> bool:
     """Detect if rematch/rerun is requested."""
     rematch_pattern = re.compile(r"\b(re-?match|re-?run|force)\b", re.IGNORECASE)
     return bool(rematch_pattern.search(message))
+
+
+def extract_hours(message: str, match: Optional[re.Match]) -> Optional[int]:
+    """Extract hours parameter from message (e.g., 'last 24 hours')."""
+    hours_pattern = re.compile(r"\b(\d+)\s*hours?\b", re.IGNORECASE)
+    match_obj = hours_pattern.search(message)
+    if match_obj:
+        return int(match_obj.group(1))
+    return None
+
+
+def extract_action_type(message: str, match: Optional[re.Match]) -> Optional[str]:
+    """Extract action type from message."""
+    # Look for known action types
+    action_types = ["email", "webhook", "log", "slack", "notification"]
+    message_lower = message.lower()
+    for action in action_types:
+        if action in message_lower:
+            return action
+    return None
+
+
+def extract_interval(message: str, match: Optional[re.Match]) -> Optional[int]:
+    """Extract interval in seconds from message (e.g., '5 minutes', '300 seconds')."""
+    # Try seconds first
+    seconds_pattern = re.compile(r"\b(\d+)\s*(?:seconds?|secs?|s)\b", re.IGNORECASE)
+    match_obj = seconds_pattern.search(message)
+    if match_obj:
+        return int(match_obj.group(1))
+
+    # Try minutes
+    minutes_pattern = re.compile(r"\b(\d+)\s*(?:minutes?|mins?|m)\b", re.IGNORECASE)
+    match_obj = minutes_pattern.search(message)
+    if match_obj:
+        return int(match_obj.group(1)) * 60
+
+    # Try hours
+    hours_pattern = re.compile(r"\b(\d+)\s*(?:hours?|hrs?|h)\b", re.IGNORECASE)
+    match_obj = hours_pattern.search(message)
+    if match_obj:
+        return int(match_obj.group(1)) * 3600
+
+    return None

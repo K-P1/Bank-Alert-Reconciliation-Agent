@@ -57,7 +57,11 @@ class RuleWeights(BaseModel):
     )
 
     def total_weight(self) -> float:
-        """Calculate total weight (should be close to 1.0)."""
+        """Calculate total weight (should be close to 1.0).
+
+        Returns:
+            Sum of all rule weights
+        """
         return (
             self.exact_amount
             + self.exact_reference
@@ -123,7 +127,11 @@ class ThresholdConfig(BaseModel):
     )
 
     def validate_thresholds(self) -> None:
-        """Ensure thresholds are in correct order."""
+        """Ensure thresholds are in correct order.
+
+        Requires: reject < needs_review < auto_match
+        Raises ValueError if thresholds are misconfigured.
+        """
         if not (self.reject < self.needs_review < self.auto_match):
             raise ValueError(
                 "Thresholds must satisfy: reject < needs_review < auto_match"
@@ -187,7 +195,11 @@ class MatchingConfig(BaseModel):
     )
 
     def validate_config(self) -> None:
-        """Validate entire configuration."""
+        """Validate entire configuration.
+
+        Ensures rule weights sum to approximately 1.0 and thresholds are in correct order.
+        Raises ValueError if validation fails.
+        """
         self.thresholds.validate_thresholds()
 
         total_weight = self.rule_weights.total_weight()

@@ -96,7 +96,13 @@ class PollerConfig(BaseModel):
     )
 
     def get_poll_interval_seconds(self) -> int:
-        """Get poll interval in seconds."""
+        """Get poll interval in seconds.
+
+        Converts the configured minutes to seconds for internal use.
+
+        Returns:
+            Poll interval in seconds
+        """
         return self.poll_interval_minutes * 60
 
     def get_lookback_timedelta(self) -> timedelta:

@@ -92,7 +92,14 @@ class Config(Base):
         return f"<Config(key={self.key}, value={self.value}, type={self.value_type})>"
 
     def get_typed_value(self):
-        """Parse and return the value with the correct type."""
+        """Parse and return the value with the correct type.
+
+        Converts the stored string value to the appropriate Python type
+        based on the value_type field (int, float, bool, json, or string).
+
+        Returns:
+            The value converted to its proper type
+        """
         if self.value_type == "int":
             return int(self.value)
         elif self.value_type == "float":
