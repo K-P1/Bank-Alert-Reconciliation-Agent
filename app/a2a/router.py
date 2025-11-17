@@ -81,15 +81,16 @@ def _init_command_interpreter() -> None:
         patterns=[
             r"\blist\s+unmatched\b",
             r"\bshow\s+(me\s+)?(the\s+)?unmatched\b",
-            r"\bpending\s+(emails?|alerts?)\b",
+            r"\bpending\s+(emails?|alerts?|transactions?|items?)\b",
             r"\bwhat.?s\s+unmatched\b",
             r"\bunpaired\b",
         ],
         handler=None,
-        description="List all unmatched email alerts",
+        description="List all unmatched emails and transactions",
         examples=[
             "list unmatched",
             "show unmatched emails",
+            "show unmatched transactions",
             "pending alerts",
         ],
         param_extractors={"limit": extract_limit},

@@ -200,45 +200,81 @@ class CommandHandlers:
 
     async def list_unmatched(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
-        List unmatched emails.
+        List unmatched emails and transactions.
 
         Params:
-            limit (optional): Number of results to return (default: 10)
+            limit (optional): Number of results to return per category (default: 10)
         """
         limit = params.get("limit", 10)
 
         logger.info("handler.list_unmatched.start", limit=limit)
 
         try:
-            # Get matched email IDs
+            # Get matched email IDs and transaction IDs
             matched_email_ids = await self.match_repo.get_matched_email_ids()
+            matched_transaction_ids = await self.match_repo.get_matched_transaction_ids()
 
             # Build query for unmatched emails
             from sqlalchemy import select, desc
 
-            query = select(self.email_repo.model)
+            email_query = select(self.email_repo.model)
 
             # Filter out matched emails
             if matched_email_ids:
-                query = query.where(~self.email_repo.model.id.in_(matched_email_ids))
+                email_query = email_query.where(~self.email_repo.model.id.in_(matched_email_ids))
 
             # Order and limit
-            query = query.order_by(desc(self.email_repo.model.created_at)).limit(limit)
+            email_query = email_query.order_by(desc(self.email_repo.model.created_at)).limit(limit)
 
-            # Execute query
-            result = await self.email_repo.session.execute(query)
-            unmatched_emails = list(result.scalars().all())
+            # Execute email query
+            email_result = await self.email_repo.session.execute(email_query)
+            unmatched_emails = list(email_result.scalars().all())
 
-            if not unmatched_emails:
-                summary = "✅ Great! No unmatched emails found."
+            # Build query for unmatched transactions
+            transaction_query = select(self.transaction_repo.model)
+
+            # Filter out matched transactions
+            if matched_transaction_ids:
+                transaction_query = transaction_query.where(
+                    ~self.transaction_repo.model.id.in_(matched_transaction_ids)
+                )
+
+            # Order and limit
+            transaction_query = transaction_query.order_by(
+                desc(self.transaction_repo.model.created_at)
+            ).limit(limit)
+
+            # Execute transaction query
+            transaction_result = await self.transaction_repo.session.execute(transaction_query)
+            unmatched_transactions = list(transaction_result.scalars().all())
+
+            # Build summary and artifacts
+            if not unmatched_emails and not unmatched_transactions:
+                summary = "✅ Great! No unmatched emails or transactions found."
                 artifacts: List[Dict[str, Any]] = []
             else:
-                summary = f"📋 **Unmatched Emails** (Showing {len(unmatched_emails)} of {len(unmatched_emails)})\n\n"
+                summary = f"📋 **Unmatched Items**\n\n"
 
+                # Add email summary
+                if unmatched_emails:
+                    summary += f"**Emails** (Showing {len(unmatched_emails)})\n"
+                    for email in unmatched_emails:
+                        summary += f"  • Email #{email.id} - {email.sender} - ₦{email.amount:,.2f} ({email.parsed_at or email.received_at})\n"
+                    summary += "\n"
+                else:
+                    summary += "**Emails**: None\n\n"
+
+                # Add transaction summary
+                if unmatched_transactions:
+                    summary += f"**Transactions** (Showing {len(unmatched_transactions)})\n"
+                    for txn in unmatched_transactions:
+                        summary += f"  • Transaction #{txn.id} - {txn.reference or 'N/A'} - {txn.currency}{txn.amount:,.2f} ({txn.transaction_timestamp})\n"
+                else:
+                    summary += "**Transactions**: None\n"
+
+                # Build artifacts
                 artifacts = []
                 for email in unmatched_emails:
-                    summary += f"  • Email #{email.id} - {email.sender} - ₦{email.amount:,.2f} ({email.parsed_at or email.received_at})\n"
-
                     artifacts.append(
                         {
                             "kind": "unmatched_email",
@@ -258,21 +294,47 @@ class CommandHandlers:
                         }
                     )
 
+                for txn in unmatched_transactions:
+                    artifacts.append(
+                        {
+                            "kind": "unmatched_transaction",
+                            "data": {
+                                "transaction_id": txn.id,
+                                "reference": txn.reference,
+                                "amount": float(txn.amount) if txn.amount else None,
+                                "currency": txn.currency,
+                                "description": txn.description,
+                                "transaction_timestamp": (
+                                    txn.transaction_timestamp.isoformat()
+                                    if txn.transaction_timestamp
+                                    else None
+                                ),
+                                "external_source": txn.external_source,
+                            },
+                        }
+                    )
+
             logger.info(
-                "handler.list_unmatched.success", unmatched_count=len(unmatched_emails)
+                "handler.list_unmatched.success",
+                unmatched_emails_count=len(unmatched_emails),
+                unmatched_transactions_count=len(unmatched_transactions),
             )
 
             return {
                 "status": "success",
                 "summary": summary,
                 "artifacts": artifacts,
-                "meta": {"limit": limit, "count": len(unmatched_emails)},
+                "meta": {
+                    "limit": limit,
+                    "email_count": len(unmatched_emails),
+                    "transaction_count": len(unmatched_transactions),
+                },
             }
         except Exception as exc:  # noqa: BLE001
             logger.exception("handler.list_unmatched.error", error=str(exc))
             return {
                 "status": "error",
-                "summary": f"❌ Failed to list unmatched emails: {str(exc)}",
+                "summary": f"❌ Failed to list unmatched items: {str(exc)}",
                 "artifacts": [],
                 "meta": {"error": str(exc)},
             }

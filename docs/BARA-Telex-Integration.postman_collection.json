@@ -447,7 +447,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"List unmatched returns email list\", function () {",
+                  "pm.test(\"List unmatched returns emails and transactions\", function () {",
                   "    pm.response.to.have.status(200);",
                   "    var json = pm.response.json();",
                   "    pm.expect(json.result.metadata.command).to.eql(\"list_unmatched\");",
@@ -467,14 +467,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"nl-unmatched\",\n  \"method\": \"message/send\",\n  \"params\": {\n    \"message\": {\n      \"kind\": \"message\",\n      \"parts\": [\n        {\n          \"kind\": \"text\",\n          \"text\": \"list unmatched emails\"\n        }\n      ]\n    }\n  }\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"nl-unmatched\",\n  \"method\": \"message/send\",\n  \"params\": {\n    \"message\": {\n      \"kind\": \"message\",\n      \"parts\": [\n        {\n          \"kind\": \"text\",\n          \"text\": \"list unmatched\"\n        }\n      ]\n    }\n  }\n}"
             },
             "url": {
               "raw": "{{base_url}}/a2a/agent/{{agent_name}}",
               "host": ["{{base_url}}"],
               "path": ["a2a", "agent", "{{agent_name}}"]
             },
-            "description": "List all unmatched email alerts"
+            "description": "List all unmatched emails and transactions"
           },
           "response": []
         },
